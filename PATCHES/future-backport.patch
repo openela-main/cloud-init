@@ -1,0 +1,13 @@
+diff --git a/config/cloud.cfg.tmpl b/config/cloud.cfg.tmpl
+index 08b6efb..ed82d8d 100644
+--- a/config/cloud.cfg.tmpl
++++ b/config/cloud.cfg.tmpl
+@@ -2,7 +2,7 @@
+ # The top level settings are used as module
+ # and system configuration.
+ {% set is_bsd = variant in ["dragonfly", "freebsd", "netbsd", "openbsd"] %}
+-{% set is_rhel = variant in ["rhel", "centos"] %}
++{% set is_rhel = variant in ["rhel", "centos", "openela"] %}
+ {% if is_bsd %}
+ syslog_fix_perms: root:wheel
+ {% elif variant in ["suse"] %}
