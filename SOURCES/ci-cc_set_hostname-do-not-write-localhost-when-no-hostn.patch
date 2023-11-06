@@ -1,0 +1,801 @@
+From d1790e6462e509e3cd87fc449df84fbd02ca1d89 Mon Sep 17 00:00:00 2001
+From: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date: Thu, 2 Jun 2022 16:03:43 +0200
+Subject: [PATCH 2/2] cc_set_hostname: do not write "localhost" when no
+ hostname is given (#1453)
+
+RH-Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-MergeRequest: 28: cc_set_hostname: do not write "localhost" when no hostname is given (#1453)
+RH-Commit: [1/1] 4370e9149371dc89be82cb05d30d33e4d2638cec (eesposit/cloud-init-centos-)
+RH-Bugzilla: 1980403
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Acked-by: Mohamed Gamal Morsy <mmorsy@redhat.com>
+
+commit 74e43496f353db52e15d96abeb54ad63baac5be9
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Tue May 31 16:03:44 2022 +0200
+
+    cc_set_hostname: do not write "localhost" when no hostname is given (#1453)
+
+    Systemd used to sometimes ignore localhost in /etc/hostnames, and many programs
+    like cloud-init used this as a workaround to set a default hostname.
+
+    From https://github.com/systemd/systemd/commit/d39079fcaa05e23540d2b1f0270fa31c22a7e9f1:
+
+            We would sometimes ignore localhost-style names in /etc/hostname. That is
+            brittle. If the user configured some hostname, it's most likely because they
+            want to use that as the hostname. If they don't want to use such a hostname,
+            they should just not create the config. Everything becomes simples if we just
+            use the configured hostname as-is.
+
+            This behaviour seems to have been a workaround for Anaconda installer and other
+            tools writing out /etc/hostname with the default of "localhost.localdomain".
+            Anaconda PR to stop doing that: rhinstaller/anaconda#3040.
+            That might have been useful as a work-around for other programs misbehaving if
+            /etc/hostname was not present, but nowadays it's not useful because systemd
+            mostly controls the hostname and it is perfectly happy without that file.
+
+            Apart from making things simpler, this allows users to set a hostname like
+            "localhost" and have it honoured, if such a whim strikes them.
+
+    As also suggested by the Anaconda PR, we need to stop writing default "localhost"
+    in /etc/hostnames, and let the right service (networking, user) do that if they
+    need to. Otherwise, "localhost" will permanently stay as hostname and will
+    prevent other tools like NetworkManager from setting the right one.
+
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+
+    RHBZ: 1980403
+
+Conflicts:
+	cloudinit/config/cc_update_etc_hosts.py
+	cloudinit/sources/DataSourceCloudSigma.py
+	cloudinit/util.py
+	tests/unittests/test_util.py
+	    Additional imports and/or conditionals that are not present in this version
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+---
+ cloudinit/cmd/main.py                         |  2 +-
+ cloudinit/config/cc_apt_configure.py          |  2 +-
+ cloudinit/config/cc_debug.py                  |  2 +-
+ cloudinit/config/cc_phone_home.py             |  4 +-
+ cloudinit/config/cc_set_hostname.py           |  6 ++-
+ cloudinit/config/cc_spacewalk.py              |  2 +-
+ cloudinit/config/cc_update_etc_hosts.py       |  4 +-
+ cloudinit/config/cc_update_hostname.py        |  7 +++-
+ cloudinit/sources/DataSourceAliYun.py         |  8 +++-
+ cloudinit/sources/DataSourceCloudSigma.py     |  6 ++-
+ cloudinit/sources/DataSourceGCE.py            |  5 ++-
+ cloudinit/sources/DataSourceScaleway.py       |  3 +-
+ cloudinit/sources/__init__.py                 | 28 ++++++++++---
+ cloudinit/util.py                             | 29 +++++++++++---
+ .../unittests/config/test_cc_set_hostname.py  | 40 ++++++++++++++++++-
+ tests/unittests/sources/test_aliyun.py        |  2 +-
+ tests/unittests/sources/test_cloudsigma.py    |  8 ++--
+ tests/unittests/sources/test_digitalocean.py  |  2 +-
+ tests/unittests/sources/test_gce.py           |  4 +-
+ tests/unittests/sources/test_hetzner.py       |  2 +-
+ tests/unittests/sources/test_init.py          | 29 +++++++++-----
+ tests/unittests/sources/test_scaleway.py      |  2 +-
+ tests/unittests/sources/test_vmware.py        |  4 +-
+ tests/unittests/test_util.py                  | 17 ++++----
+ tests/unittests/util.py                       |  3 +-
+ 25 files changed, 166 insertions(+), 55 deletions(-)
+
+diff --git a/cloudinit/cmd/main.py b/cloudinit/cmd/main.py
+index c9be41b3..816d31aa 100644
+--- a/cloudinit/cmd/main.py
++++ b/cloudinit/cmd/main.py
+@@ -813,7 +813,7 @@ def _maybe_set_hostname(init, stage, retry_stage):
+     @param retry_stage: String represented logs upon error setting hostname.
+     """
+     cloud = init.cloudify()
+-    (hostname, _fqdn) = util.get_hostname_fqdn(
++    (hostname, _fqdn, _) = util.get_hostname_fqdn(
+         init.cfg, cloud, metadata_only=True
+     )
+     if hostname:  # meta-data or user-data hostname content
+diff --git a/cloudinit/config/cc_apt_configure.py b/cloudinit/config/cc_apt_configure.py
+index c558311a..0e6466ec 100644
+--- a/cloudinit/config/cc_apt_configure.py
++++ b/cloudinit/config/cc_apt_configure.py
+@@ -753,7 +753,7 @@ def search_for_mirror_dns(configured, mirrortype, cfg, cloud):
+             raise ValueError("unknown mirror type")
+ 
+         # if we have a fqdn, then search its domain portion first
+-        (_, fqdn) = util.get_hostname_fqdn(cfg, cloud)
++        fqdn = util.get_hostname_fqdn(cfg, cloud).fqdn
+         mydom = ".".join(fqdn.split(".")[1:])
+         if mydom:
+             doms.append(".%s" % mydom)
+diff --git a/cloudinit/config/cc_debug.py b/cloudinit/config/cc_debug.py
+index c51818c3..a00f2823 100644
+--- a/cloudinit/config/cc_debug.py
++++ b/cloudinit/config/cc_debug.py
+@@ -95,7 +95,7 @@ def handle(name, cfg, cloud, log, args):
+         "Datasource: %s\n" % (type_utils.obj_name(cloud.datasource))
+     )
+     to_print.write("Distro: %s\n" % (type_utils.obj_name(cloud.distro)))
+-    to_print.write("Hostname: %s\n" % (cloud.get_hostname(True)))
++    to_print.write("Hostname: %s\n" % (cloud.get_hostname(True).hostname))
+     to_print.write("Instance ID: %s\n" % (cloud.get_instance_id()))
+     to_print.write("Locale: %s\n" % (cloud.get_locale()))
+     to_print.write("Launch IDX: %s\n" % (cloud.launch_index))
+diff --git a/cloudinit/config/cc_phone_home.py b/cloudinit/config/cc_phone_home.py
+index a0e1da78..1cf270aa 100644
+--- a/cloudinit/config/cc_phone_home.py
++++ b/cloudinit/config/cc_phone_home.py
+@@ -119,8 +119,8 @@ def handle(name, cfg, cloud, log, args):
+ 
+     all_keys = {}
+     all_keys["instance_id"] = cloud.get_instance_id()
+-    all_keys["hostname"] = cloud.get_hostname()
+-    all_keys["fqdn"] = cloud.get_hostname(fqdn=True)
++    all_keys["hostname"] = cloud.get_hostname().hostname
++    all_keys["fqdn"] = cloud.get_hostname(fqdn=True).hostname
+ 
+     pubkeys = {
+         "pub_key_dsa": "/etc/ssh/ssh_host_dsa_key.pub",
+diff --git a/cloudinit/config/cc_set_hostname.py b/cloudinit/config/cc_set_hostname.py
+index eb0ca328..2674fa20 100644
+--- a/cloudinit/config/cc_set_hostname.py
++++ b/cloudinit/config/cc_set_hostname.py
+@@ -76,7 +76,7 @@ def handle(name, cfg, cloud, log, _args):
+     if hostname_fqdn is not None:
+         cloud.distro.set_option("prefer_fqdn_over_hostname", hostname_fqdn)
+ 
+-    (hostname, fqdn) = util.get_hostname_fqdn(cfg, cloud)
++    (hostname, fqdn, is_default) = util.get_hostname_fqdn(cfg, cloud)
+     # Check for previous successful invocation of set-hostname
+ 
+     # set-hostname artifact file accounts for both hostname and fqdn
+@@ -94,6 +94,10 @@ def handle(name, cfg, cloud, log, _args):
+     if not hostname_changed:
+         log.debug("No hostname changes. Skipping set-hostname")
+         return
++    if is_default and hostname == "localhost":
++        # https://github.com/systemd/systemd/commit/d39079fcaa05e23540d2b1f0270fa31c22a7e9f1
++        log.debug("Hostname is localhost. Let other services handle this.")
++        return
+     log.debug("Setting the hostname to %s (%s)", fqdn, hostname)
+     try:
+         cloud.distro.set_hostname(hostname, fqdn)
+diff --git a/cloudinit/config/cc_spacewalk.py b/cloudinit/config/cc_spacewalk.py
+index 3fa6c388..419c8b32 100644
+--- a/cloudinit/config/cc_spacewalk.py
++++ b/cloudinit/config/cc_spacewalk.py
+@@ -89,7 +89,7 @@ def handle(name, cfg, cloud, log, _args):
+         if not is_registered():
+             do_register(
+                 spacewalk_server,
+-                cloud.datasource.get_hostname(fqdn=True),
++                cloud.datasource.get_hostname(fqdn=True).hostname,
+                 proxy=cfg.get("proxy"),
+                 log=log,
+                 activation_key=cfg.get("activation_key"),
+diff --git a/cloudinit/config/cc_update_etc_hosts.py b/cloudinit/config/cc_update_etc_hosts.py
+index f0aa9b0f..d2ee6f45 100644
+--- a/cloudinit/config/cc_update_etc_hosts.py
++++ b/cloudinit/config/cc_update_etc_hosts.py
+@@ -62,7 +62,7 @@ def handle(name, cfg, cloud, log, _args):
+     hosts_fn = cloud.distro.hosts_fn
+ 
+     if util.translate_bool(manage_hosts, addons=["template"]):
+-        (hostname, fqdn) = util.get_hostname_fqdn(cfg, cloud)
++        (hostname, fqdn, _) = util.get_hostname_fqdn(cfg, cloud)
+         if not hostname:
+             log.warning(
+                 "Option 'manage_etc_hosts' was set, but no hostname was found"
+@@ -84,7 +84,7 @@ def handle(name, cfg, cloud, log, _args):
+         )
+ 
+     elif manage_hosts == "localhost":
+-        (hostname, fqdn) = util.get_hostname_fqdn(cfg, cloud)
++        (hostname, fqdn, _) = util.get_hostname_fqdn(cfg, cloud)
+         if not hostname:
+             log.warning(
+                 "Option 'manage_etc_hosts' was set, but no hostname was found"
+diff --git a/cloudinit/config/cc_update_hostname.py b/cloudinit/config/cc_update_hostname.py
+index 09f6f6da..e2046020 100644
+--- a/cloudinit/config/cc_update_hostname.py
++++ b/cloudinit/config/cc_update_hostname.py
+@@ -56,7 +56,12 @@ def handle(name, cfg, cloud, log, _args):
+     if hostname_fqdn is not None:
+         cloud.distro.set_option("prefer_fqdn_over_hostname", hostname_fqdn)
+ 
+-    (hostname, fqdn) = util.get_hostname_fqdn(cfg, cloud)
++    (hostname, fqdn, is_default) = util.get_hostname_fqdn(cfg, cloud)
++    if is_default and hostname == "localhost":
++        # https://github.com/systemd/systemd/commit/d39079fcaa05e23540d2b1f0270fa31c22a7e9f1
++        log.debug("Hostname is localhost. Let other services handle this.")
++        return
++
+     try:
+         prev_fn = os.path.join(cloud.get_cpath("data"), "previous-hostname")
+         log.debug("Updating hostname to %s (%s)", fqdn, hostname)
+diff --git a/cloudinit/sources/DataSourceAliYun.py b/cloudinit/sources/DataSourceAliYun.py
+index 37f512e3..b9390aca 100644
+--- a/cloudinit/sources/DataSourceAliYun.py
++++ b/cloudinit/sources/DataSourceAliYun.py
+@@ -2,6 +2,7 @@
+ 
+ from cloudinit import dmi, sources
+ from cloudinit.sources import DataSourceEc2 as EC2
++from cloudinit.sources import DataSourceHostname
+ 
+ ALIYUN_PRODUCT = "Alibaba Cloud ECS"
+ 
+@@ -16,7 +17,12 @@ class DataSourceAliYun(EC2.DataSourceEc2):
+     extended_metadata_versions = []
+ 
+     def get_hostname(self, fqdn=False, resolve_ip=False, metadata_only=False):
+-        return self.metadata.get("hostname", "localhost.localdomain")
++        hostname = self.metadata.get("hostname")
++        is_default = False
++        if hostname is None:
++            hostname = "localhost.localdomain"
++            is_default = True
++        return DataSourceHostname(hostname, is_default)
+ 
+     def get_public_ssh_keys(self):
+         return parse_public_keys(self.metadata.get("public-keys", {}))
+diff --git a/cloudinit/sources/DataSourceCloudSigma.py b/cloudinit/sources/DataSourceCloudSigma.py
+index de71c3e9..91ebb084 100644
+--- a/cloudinit/sources/DataSourceCloudSigma.py
++++ b/cloudinit/sources/DataSourceCloudSigma.py
+@@ -11,6 +11,7 @@ from cloudinit import dmi
+ from cloudinit import log as logging
+ from cloudinit import sources
+ from cloudinit.cs_utils import SERIAL_PORT, Cepko
++from cloudinit.sources import DataSourceHostname
+ 
+ LOG = logging.getLogger(__name__)
+ 
+@@ -90,9 +91,10 @@ class DataSourceCloudSigma(sources.DataSource):
+         the first part from uuid is being used.
+         """
+         if re.match(r"^[A-Za-z0-9 -_\.]+$", self.metadata["name"]):
+-            return self.metadata["name"][:61]
++            ret = self.metadata["name"][:61]
+         else:
+-            return self.metadata["uuid"].split("-")[0]
++            ret = self.metadata["uuid"].split("-")[0]
++        return DataSourceHostname(ret, False)
+ 
+     def get_public_ssh_keys(self):
+         return [self.ssh_public_key]
+diff --git a/cloudinit/sources/DataSourceGCE.py b/cloudinit/sources/DataSourceGCE.py
+index c470bea8..f7ec6b52 100644
+--- a/cloudinit/sources/DataSourceGCE.py
++++ b/cloudinit/sources/DataSourceGCE.py
+@@ -12,6 +12,7 @@ from cloudinit import log as logging
+ from cloudinit import sources, url_helper, util
+ from cloudinit.distros import ug_util
+ from cloudinit.net.dhcp import EphemeralDHCPv4
++from cloudinit.sources import DataSourceHostname
+ 
+ LOG = logging.getLogger(__name__)
+ 
+@@ -122,7 +123,9 @@ class DataSourceGCE(sources.DataSource):
+ 
+     def get_hostname(self, fqdn=False, resolve_ip=False, metadata_only=False):
+         # GCE has long FDQN's and has asked for short hostnames.
+-        return self.metadata["local-hostname"].split(".")[0]
++        return DataSourceHostname(
++            self.metadata["local-hostname"].split(".")[0], False
++        )
+ 
+     @property
+     def availability_zone(self):
+diff --git a/cloudinit/sources/DataSourceScaleway.py b/cloudinit/sources/DataSourceScaleway.py
+index 8e5dd82c..8f08dc6d 100644
+--- a/cloudinit/sources/DataSourceScaleway.py
++++ b/cloudinit/sources/DataSourceScaleway.py
+@@ -30,6 +30,7 @@ from cloudinit import log as logging
+ from cloudinit import net, sources, url_helper, util
+ from cloudinit.event import EventScope, EventType
+ from cloudinit.net.dhcp import EphemeralDHCPv4, NoDHCPLeaseError
++from cloudinit.sources import DataSourceHostname
+ 
+ LOG = logging.getLogger(__name__)
+ 
+@@ -282,7 +283,7 @@ class DataSourceScaleway(sources.DataSource):
+         return ssh_keys
+ 
+     def get_hostname(self, fqdn=False, resolve_ip=False, metadata_only=False):
+-        return self.metadata["hostname"]
++        return DataSourceHostname(self.metadata["hostname"], False)
+ 
+     @property
+     def availability_zone(self):
+diff --git a/cloudinit/sources/__init__.py b/cloudinit/sources/__init__.py
+index 88028cfa..77b24fd7 100644
+--- a/cloudinit/sources/__init__.py
++++ b/cloudinit/sources/__init__.py
+@@ -148,6 +148,11 @@ URLParams = namedtuple(
+     ],
+ )
+ 
++DataSourceHostname = namedtuple(
++    "DataSourceHostname",
++    ["hostname", "is_default"],
++)
++
+ 
+ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
+ 
+@@ -291,7 +296,7 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
+ 
+     def _get_standardized_metadata(self, instance_data):
+         """Return a dictionary of standardized metadata keys."""
+-        local_hostname = self.get_hostname()
++        local_hostname = self.get_hostname().hostname
+         instance_id = self.get_instance_id()
+         availability_zone = self.availability_zone
+         # In the event of upgrade from existing cloudinit, pickled datasource
+@@ -697,22 +702,33 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
+         @param metadata_only: Boolean, set True to avoid looking up hostname
+             if meta-data doesn't have local-hostname present.
+ 
+-        @return: hostname or qualified hostname. Optionally return None when
++        @return: a DataSourceHostname namedtuple
++            <hostname or qualified hostname>, <is_default> (str, bool).
++            is_default is a bool and
++            it's true only if hostname is localhost and was
++            returned by util.get_hostname() as a default.
++            This is used to differentiate with a user-defined
++            localhost hostname.
++            Optionally return (None, False) when
+             metadata_only is True and local-hostname data is not available.
+         """
+         defdomain = "localdomain"
+         defhost = "localhost"
+         domain = defdomain
++        is_default = False
+ 
+         if not self.metadata or not self.metadata.get("local-hostname"):
+             if metadata_only:
+-                return None
++                return DataSourceHostname(None, is_default)
+             # this is somewhat questionable really.
+             # the cloud datasource was asked for a hostname
+             # and didn't have one. raising error might be more appropriate
+             # but instead, basically look up the existing hostname
+             toks = []
+             hostname = util.get_hostname()
++            if hostname == "localhost":
++                # default hostname provided by socket.gethostname()
++                is_default = True
+             hosts_fqdn = util.get_fqdn_from_hosts(hostname)
+             if hosts_fqdn and hosts_fqdn.find(".") > 0:
+                 toks = str(hosts_fqdn).split(".")
+@@ -745,9 +761,9 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
+             hostname = toks[0]
+ 
+         if fqdn and domain != defdomain:
+-            return "%s.%s" % (hostname, domain)
+-        else:
+-            return hostname
++            hostname = "%s.%s" % (hostname, domain)
++
++        return DataSourceHostname(hostname, is_default)
+ 
+     def get_package_mirror_info(self):
+         return self.distro.get_package_mirror_info(data_source=self)
+diff --git a/cloudinit/util.py b/cloudinit/util.py
+index 569fc215..4cb21551 100644
+--- a/cloudinit/util.py
++++ b/cloudinit/util.py
+@@ -32,7 +32,8 @@ import subprocess
+ import sys
+ import time
+ from base64 import b64decode, b64encode
+-from errno import ENOENT
++from collections import deque, namedtuple
++from errno import EACCES, ENOENT
+ from functools import lru_cache
+ from typing import List
+ from urllib import parse
+@@ -1072,6 +1073,12 @@ def dos2unix(contents):
+     return contents.replace("\r\n", "\n")
+ 
+ 
++HostnameFqdnInfo = namedtuple(
++    "HostnameFqdnInfo",
++    ["hostname", "fqdn", "is_default"],
++)
++
++
+ def get_hostname_fqdn(cfg, cloud, metadata_only=False):
+     """Get hostname and fqdn from config if present and fallback to cloud.
+ 
+@@ -1079,9 +1086,17 @@ def get_hostname_fqdn(cfg, cloud, metadata_only=False):
+     @param cloud: Cloud instance from init.cloudify().
+     @param metadata_only: Boolean, set True to only query cloud meta-data,
+         returning None if not present in meta-data.
+-    @return: a Tuple of strings <hostname>, <fqdn>. Values can be none when
++    @return: a namedtuple of
++        <hostname>, <fqdn>, <is_default> (str, str, bool).
++        Values can be none when
+         metadata_only is True and no cfg or metadata provides hostname info.
++        is_default is a bool and
++        it's true only if hostname is localhost and was
++        returned by util.get_hostname() as a default.
++        This is used to differentiate with a user-defined
++        localhost hostname.
+     """
++    is_default = False
+     if "fqdn" in cfg:
+         # user specified a fqdn.  Default hostname then is based off that
+         fqdn = cfg["fqdn"]
+@@ -1095,12 +1110,16 @@ def get_hostname_fqdn(cfg, cloud, metadata_only=False):
+         else:
+             # no fqdn set, get fqdn from cloud.
+             # get hostname from cfg if available otherwise cloud
+-            fqdn = cloud.get_hostname(fqdn=True, metadata_only=metadata_only)
++            fqdn = cloud.get_hostname(
++                fqdn=True, metadata_only=metadata_only
++            ).hostname
+             if "hostname" in cfg:
+                 hostname = cfg["hostname"]
+             else:
+-                hostname = cloud.get_hostname(metadata_only=metadata_only)
+-    return (hostname, fqdn)
++                hostname, is_default = cloud.get_hostname(
++                    metadata_only=metadata_only
++                )
++    return HostnameFqdnInfo(hostname, fqdn, is_default)
+ 
+ 
+ def get_fqdn_from_hosts(hostname, filename="/etc/hosts"):
+diff --git a/tests/unittests/config/test_cc_set_hostname.py b/tests/unittests/config/test_cc_set_hostname.py
+index fd994c4e..3d1d86ee 100644
+--- a/tests/unittests/config/test_cc_set_hostname.py
++++ b/tests/unittests/config/test_cc_set_hostname.py
+@@ -11,6 +11,7 @@ from configobj import ConfigObj
+ 
+ from cloudinit import cloud, distros, helpers, util
+ from cloudinit.config import cc_set_hostname
++from cloudinit.sources import DataSourceNone
+ from tests.unittests import helpers as t_help
+ 
+ LOG = logging.getLogger(__name__)
+@@ -153,7 +154,8 @@ class TestHostname(t_help.FilesystemMockingTestCase):
+                     )
+                 ] not in m_subp.call_args_list
+ 
+-    def test_multiple_calls_skips_unchanged_hostname(self):
++    @mock.patch("cloudinit.util.get_hostname", return_value="localhost")
++    def test_multiple_calls_skips_unchanged_hostname(self, get_hostname):
+         """Only new hostname or fqdn values will generate a hostname call."""
+         distro = self._fetch_distro("debian")
+         paths = helpers.Paths({"cloud_dir": self.tmp})
+@@ -182,6 +184,42 @@ class TestHostname(t_help.FilesystemMockingTestCase):
+             self.logs.getvalue(),
+         )
+ 
++    @mock.patch("cloudinit.util.get_hostname", return_value="localhost")
++    def test_localhost_default_hostname(self, get_hostname):
++        """
++        No hostname set. Default value returned is localhost,
++        but we shouldn't write it in /etc/hostname
++        """
++        distro = self._fetch_distro("debian")
++        paths = helpers.Paths({"cloud_dir": self.tmp})
++        ds = DataSourceNone.DataSourceNone({}, None, paths)
++        cc = cloud.Cloud(ds, paths, {}, distro, None)
++        self.patchUtils(self.tmp)
++
++        util.write_file("/etc/hostname", "")
++        cc_set_hostname.handle("cc_set_hostname", {}, cc, LOG, [])
++        contents = util.load_file("/etc/hostname")
++        self.assertEqual("", contents.strip())
++
++    @mock.patch("cloudinit.util.get_hostname", return_value="localhost")
++    def test_localhost_user_given_hostname(self, get_hostname):
++        """
++        User set hostname is localhost. We should write it in /etc/hostname
++        """
++        distro = self._fetch_distro("debian")
++        paths = helpers.Paths({"cloud_dir": self.tmp})
++        ds = DataSourceNone.DataSourceNone({}, None, paths)
++        cc = cloud.Cloud(ds, paths, {}, distro, None)
++        self.patchUtils(self.tmp)
++
++        # user-provided localhost should not be ignored
++        util.write_file("/etc/hostname", "")
++        cc_set_hostname.handle(
++            "cc_set_hostname", {"hostname": "localhost"}, cc, LOG, []
++        )
++        contents = util.load_file("/etc/hostname")
++        self.assertEqual("localhost", contents.strip())
++
+     def test_error_on_distro_set_hostname_errors(self):
+         """Raise SetHostnameError on exceptions from distro.set_hostname."""
+         distro = self._fetch_distro("debian")
+diff --git a/tests/unittests/sources/test_aliyun.py b/tests/unittests/sources/test_aliyun.py
+index 8a61d5ee..e628dc02 100644
+--- a/tests/unittests/sources/test_aliyun.py
++++ b/tests/unittests/sources/test_aliyun.py
+@@ -149,7 +149,7 @@ class TestAliYunDatasource(test_helpers.HttprettyTestCase):
+ 
+     def _test_host_name(self):
+         self.assertEqual(
+-            self.default_metadata["hostname"], self.ds.get_hostname()
++            self.default_metadata["hostname"], self.ds.get_hostname().hostname
+         )
+ 
+     @mock.patch("cloudinit.sources.DataSourceAliYun._is_aliyun")
+diff --git a/tests/unittests/sources/test_cloudsigma.py b/tests/unittests/sources/test_cloudsigma.py
+index a2f26245..3dca7ea8 100644
+--- a/tests/unittests/sources/test_cloudsigma.py
++++ b/tests/unittests/sources/test_cloudsigma.py
+@@ -58,12 +58,14 @@ class DataSourceCloudSigmaTest(test_helpers.CiTestCase):
+ 
+     def test_get_hostname(self):
+         self.datasource.get_data()
+-        self.assertEqual("test_server", self.datasource.get_hostname())
++        self.assertEqual(
++            "test_server", self.datasource.get_hostname().hostname
++        )
+         self.datasource.metadata["name"] = ""
+-        self.assertEqual("65b2fb23", self.datasource.get_hostname())
++        self.assertEqual("65b2fb23", self.datasource.get_hostname().hostname)
+         utf8_hostname = b"\xd1\x82\xd0\xb5\xd1\x81\xd1\x82".decode("utf-8")
+         self.datasource.metadata["name"] = utf8_hostname
+-        self.assertEqual("65b2fb23", self.datasource.get_hostname())
++        self.assertEqual("65b2fb23", self.datasource.get_hostname().hostname)
+ 
+     def test_get_public_ssh_keys(self):
+         self.datasource.get_data()
+diff --git a/tests/unittests/sources/test_digitalocean.py b/tests/unittests/sources/test_digitalocean.py
+index f3e6224e..47e46c66 100644
+--- a/tests/unittests/sources/test_digitalocean.py
++++ b/tests/unittests/sources/test_digitalocean.py
+@@ -178,7 +178,7 @@ class TestDataSourceDigitalOcean(CiTestCase):
+         self.assertEqual(DO_META.get("vendor_data"), ds.get_vendordata_raw())
+         self.assertEqual(DO_META.get("region"), ds.availability_zone)
+         self.assertEqual(DO_META.get("droplet_id"), ds.get_instance_id())
+-        self.assertEqual(DO_META.get("hostname"), ds.get_hostname())
++        self.assertEqual(DO_META.get("hostname"), ds.get_hostname().hostname)
+ 
+         # Single key
+         self.assertEqual(
+diff --git a/tests/unittests/sources/test_gce.py b/tests/unittests/sources/test_gce.py
+index e030931b..1ce0c6ec 100644
+--- a/tests/unittests/sources/test_gce.py
++++ b/tests/unittests/sources/test_gce.py
+@@ -126,7 +126,7 @@ class TestDataSourceGCE(test_helpers.HttprettyTestCase):
+         self.ds.get_data()
+ 
+         shostname = GCE_META.get("instance/hostname").split(".")[0]
+-        self.assertEqual(shostname, self.ds.get_hostname())
++        self.assertEqual(shostname, self.ds.get_hostname().hostname)
+ 
+         self.assertEqual(
+             GCE_META.get("instance/id"), self.ds.get_instance_id()
+@@ -147,7 +147,7 @@ class TestDataSourceGCE(test_helpers.HttprettyTestCase):
+         )
+ 
+         shostname = GCE_META_PARTIAL.get("instance/hostname").split(".")[0]
+-        self.assertEqual(shostname, self.ds.get_hostname())
++        self.assertEqual(shostname, self.ds.get_hostname().hostname)
+ 
+     def test_userdata_no_encoding(self):
+         """check that user-data is read."""
+diff --git a/tests/unittests/sources/test_hetzner.py b/tests/unittests/sources/test_hetzner.py
+index f80ed45f..193b7e42 100644
+--- a/tests/unittests/sources/test_hetzner.py
++++ b/tests/unittests/sources/test_hetzner.py
+@@ -116,7 +116,7 @@ class TestDataSourceHetzner(CiTestCase):
+ 
+         self.assertTrue(m_readmd.called)
+ 
+-        self.assertEqual(METADATA.get("hostname"), ds.get_hostname())
++        self.assertEqual(METADATA.get("hostname"), ds.get_hostname().hostname)
+ 
+         self.assertEqual(METADATA.get("public-keys"), ds.get_public_ssh_keys())
+ 
+diff --git a/tests/unittests/sources/test_init.py b/tests/unittests/sources/test_init.py
+index ce8fc970..79fc9c5b 100644
+--- a/tests/unittests/sources/test_init.py
++++ b/tests/unittests/sources/test_init.py
+@@ -272,9 +272,11 @@ class TestDataSource(CiTestCase):
+         self.assertEqual(
+             "test-subclass-hostname", datasource.metadata["local-hostname"]
+         )
+-        self.assertEqual("test-subclass-hostname", datasource.get_hostname())
++        self.assertEqual(
++            "test-subclass-hostname", datasource.get_hostname().hostname
++        )
+         datasource.metadata["local-hostname"] = "hostname.my.domain.com"
+-        self.assertEqual("hostname", datasource.get_hostname())
++        self.assertEqual("hostname", datasource.get_hostname().hostname)
+ 
+     def test_get_hostname_with_fqdn_returns_local_hostname_with_domain(self):
+         """Datasource.get_hostname with fqdn set gets qualified hostname."""
+@@ -285,7 +287,8 @@ class TestDataSource(CiTestCase):
+         self.assertTrue(datasource.get_data())
+         datasource.metadata["local-hostname"] = "hostname.my.domain.com"
+         self.assertEqual(
+-            "hostname.my.domain.com", datasource.get_hostname(fqdn=True)
++            "hostname.my.domain.com",
++            datasource.get_hostname(fqdn=True).hostname,
+         )
+ 
+     def test_get_hostname_without_metadata_uses_system_hostname(self):
+@@ -300,10 +303,12 @@ class TestDataSource(CiTestCase):
+             with mock.patch(mock_fqdn) as m_fqdn:
+                 m_gethost.return_value = "systemhostname.domain.com"
+                 m_fqdn.return_value = None  # No maching fqdn in /etc/hosts
+-                self.assertEqual("systemhostname", datasource.get_hostname())
++                self.assertEqual(
++                    "systemhostname", datasource.get_hostname().hostname
++                )
+                 self.assertEqual(
+                     "systemhostname.domain.com",
+-                    datasource.get_hostname(fqdn=True),
++                    datasource.get_hostname(fqdn=True).hostname,
+                 )
+ 
+     def test_get_hostname_without_metadata_returns_none(self):
+@@ -316,9 +321,13 @@ class TestDataSource(CiTestCase):
+         mock_fqdn = "cloudinit.sources.util.get_fqdn_from_hosts"
+         with mock.patch("cloudinit.sources.util.get_hostname") as m_gethost:
+             with mock.patch(mock_fqdn) as m_fqdn:
+-                self.assertIsNone(datasource.get_hostname(metadata_only=True))
+                 self.assertIsNone(
+-                    datasource.get_hostname(fqdn=True, metadata_only=True)
++                    datasource.get_hostname(metadata_only=True).hostname
++                )
++                self.assertIsNone(
++                    datasource.get_hostname(
++                        fqdn=True, metadata_only=True
++                    ).hostname
+                 )
+         self.assertEqual([], m_gethost.call_args_list)
+         self.assertEqual([], m_fqdn.call_args_list)
+@@ -335,10 +344,12 @@ class TestDataSource(CiTestCase):
+             with mock.patch(mock_fqdn) as m_fqdn:
+                 m_gethost.return_value = "systemhostname.domain.com"
+                 m_fqdn.return_value = "fqdnhostname.domain.com"
+-                self.assertEqual("fqdnhostname", datasource.get_hostname())
++                self.assertEqual(
++                    "fqdnhostname", datasource.get_hostname().hostname
++                )
+                 self.assertEqual(
+                     "fqdnhostname.domain.com",
+-                    datasource.get_hostname(fqdn=True),
++                    datasource.get_hostname(fqdn=True).hostname,
+                 )
+ 
+     def test_get_data_does_not_write_instance_data_on_failure(self):
+diff --git a/tests/unittests/sources/test_scaleway.py b/tests/unittests/sources/test_scaleway.py
+index d7e8b969..56735dd0 100644
+--- a/tests/unittests/sources/test_scaleway.py
++++ b/tests/unittests/sources/test_scaleway.py
+@@ -236,7 +236,7 @@ class TestDataSourceScaleway(HttprettyTestCase):
+             ].sort(),
+         )
+         self.assertEqual(
+-            self.datasource.get_hostname(),
++            self.datasource.get_hostname().hostname,
+             MetadataResponses.FAKE_METADATA["hostname"],
+         )
+         self.assertEqual(
+diff --git a/tests/unittests/sources/test_vmware.py b/tests/unittests/sources/test_vmware.py
+index dd331349..753bb774 100644
+--- a/tests/unittests/sources/test_vmware.py
++++ b/tests/unittests/sources/test_vmware.py
+@@ -368,7 +368,9 @@ class TestDataSourceVMwareGuestInfo_InvalidPlatform(FilesystemMockingTestCase):
+ 
+ def assert_metadata(test_obj, ds, metadata):
+     test_obj.assertEqual(metadata.get("instance-id"), ds.get_instance_id())
+-    test_obj.assertEqual(metadata.get("local-hostname"), ds.get_hostname())
++    test_obj.assertEqual(
++        metadata.get("local-hostname"), ds.get_hostname().hostname
++    )
+ 
+     expected_public_keys = metadata.get("public_keys")
+     if not isinstance(expected_public_keys, list):
+diff --git a/tests/unittests/test_util.py b/tests/unittests/test_util.py
+index 3765511b..528b7f36 100644
+--- a/tests/unittests/test_util.py
++++ b/tests/unittests/test_util.py
+@@ -19,6 +19,7 @@ import pytest
+ import yaml
+ 
+ from cloudinit import importer, subp, util
++from cloudinit.sources import DataSourceHostname
+ from tests.unittests import helpers
+ from tests.unittests.helpers import CiTestCase
+ 
+@@ -331,8 +332,8 @@ class FakeCloud(object):
+             myargs["metadata_only"] = metadata_only
+         self.calls.append(myargs)
+         if fqdn:
+-            return self.fqdn
+-        return self.hostname
++            return DataSourceHostname(self.fqdn, False)
++        return DataSourceHostname(self.hostname, False)
+ 
+ 
+ class TestUtil(CiTestCase):
+@@ -420,7 +421,7 @@ class TestShellify(CiTestCase):
+ class TestGetHostnameFqdn(CiTestCase):
+     def test_get_hostname_fqdn_from_only_cfg_fqdn(self):
+         """When cfg only has the fqdn key, derive hostname and fqdn from it."""
+-        hostname, fqdn = util.get_hostname_fqdn(
++        hostname, fqdn, _ = util.get_hostname_fqdn(
+             cfg={"fqdn": "myhost.domain.com"}, cloud=None
+         )
+         self.assertEqual("myhost", hostname)
+@@ -428,7 +429,7 @@ class TestGetHostnameFqdn(CiTestCase):
+ 
+     def test_get_hostname_fqdn_from_cfg_fqdn_and_hostname(self):
+         """When cfg has both fqdn and hostname keys, return them."""
+-        hostname, fqdn = util.get_hostname_fqdn(
++        hostname, fqdn, _ = util.get_hostname_fqdn(
+             cfg={"fqdn": "myhost.domain.com", "hostname": "other"}, cloud=None
+         )
+         self.assertEqual("other", hostname)
+@@ -436,7 +437,7 @@ class TestGetHostnameFqdn(CiTestCase):
+ 
+     def test_get_hostname_fqdn_from_cfg_hostname_with_domain(self):
+         """When cfg has only hostname key which represents a fqdn, use that."""
+-        hostname, fqdn = util.get_hostname_fqdn(
++        hostname, fqdn, _ = util.get_hostname_fqdn(
+             cfg={"hostname": "myhost.domain.com"}, cloud=None
+         )
+         self.assertEqual("myhost", hostname)
+@@ -445,7 +446,7 @@ class TestGetHostnameFqdn(CiTestCase):
+     def test_get_hostname_fqdn_from_cfg_hostname_without_domain(self):
+         """When cfg has a hostname without a '.' query cloud.get_hostname."""
+         mycloud = FakeCloud("cloudhost", "cloudhost.mycloud.com")
+-        hostname, fqdn = util.get_hostname_fqdn(
++        hostname, fqdn, _ = util.get_hostname_fqdn(
+             cfg={"hostname": "myhost"}, cloud=mycloud
+         )
+         self.assertEqual("myhost", hostname)
+@@ -457,7 +458,7 @@ class TestGetHostnameFqdn(CiTestCase):
+     def test_get_hostname_fqdn_from_without_fqdn_or_hostname(self):
+         """When cfg has neither hostname nor fqdn cloud.get_hostname."""
+         mycloud = FakeCloud("cloudhost", "cloudhost.mycloud.com")
+-        hostname, fqdn = util.get_hostname_fqdn(cfg={}, cloud=mycloud)
++        hostname, fqdn, _ = util.get_hostname_fqdn(cfg={}, cloud=mycloud)
+         self.assertEqual("cloudhost", hostname)
+         self.assertEqual("cloudhost.mycloud.com", fqdn)
+         self.assertEqual(
+@@ -468,7 +469,7 @@ class TestGetHostnameFqdn(CiTestCase):
+     def test_get_hostname_fqdn_from_passes_metadata_only_to_cloud(self):
+         """Calls to cloud.get_hostname pass the metadata_only parameter."""
+         mycloud = FakeCloud("cloudhost", "cloudhost.mycloud.com")
+-        _hn, _fqdn = util.get_hostname_fqdn(
++        _hn, _fqdn, _def_hostname = util.get_hostname_fqdn(
+             cfg={}, cloud=mycloud, metadata_only=True
+         )
+         self.assertEqual(
+diff --git a/tests/unittests/util.py b/tests/unittests/util.py
+index 79a6e1d0..6fb39506 100644
+--- a/tests/unittests/util.py
++++ b/tests/unittests/util.py
+@@ -1,5 +1,6 @@
+ # This file is part of cloud-init. See LICENSE file for license information.
+ from cloudinit import cloud, distros, helpers
++from cloudinit.sources import DataSourceHostname
+ from cloudinit.sources.DataSourceNone import DataSourceNone
+ 
+ 
+@@ -37,7 +38,7 @@ def abstract_to_concrete(abclass):
+ 
+ class DataSourceTesting(DataSourceNone):
+     def get_hostname(self, fqdn=False, resolve_ip=False, metadata_only=False):
+-        return "hostname"
++        return DataSourceHostname("hostname", False)
+ 
+     def persist_instance_data(self):
+         return True
+-- 
+2.31.1
+

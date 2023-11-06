@@ -1,0 +1,69 @@
+From 40ad855b883050069393b9c00db2a6d222d949db Mon Sep 17 00:00:00 2001
+From: Eduardo Otubo <otubo@redhat.com>
+Date: Fri, 7 May 2021 13:36:08 +0200
+Subject: limit permissions on def_log_file
+
+This sets a default mode of 0600 on def_log_file, and makes this
+configurable via the def_log_file_mode option in cloud.cfg.
+
+LP: #1541196
+Resolves: rhbz#1424612
+X-approved-upstream: true
+
+Conflicts 21.1:
+    cloudinit/stages.py: adjusting call of ensure_file() to use more
+recent version
+
+Signed-off-by: Eduardo Otubo <otubo@redhat.com>
+---
+ cloudinit/settings.py         | 1 +
+ cloudinit/stages.py           | 1 +
+ doc/examples/cloud-config.txt | 4 ++++
+ 3 files changed, 6 insertions(+)
+
+diff --git a/cloudinit/settings.py b/cloudinit/settings.py
+index a780e21e..aa2d6b95 100644
+--- a/cloudinit/settings.py
++++ b/cloudinit/settings.py
+@@ -49,6 +49,7 @@ CFG_BUILTIN = {
+         "None",
+     ],
+     'def_log_file': '/var/log/cloud-init.log',
++    'def_log_file_mode': 0o600,
+     'log_cfgs': [],
+     'mount_default_fields': [None, None, 'auto', 'defaults,nofail', '0', '2'],
+     'ssh_deletekeys': False,
+diff --git a/cloudinit/stages.py b/cloudinit/stages.py
+index 3f17294b..61db1dbd 100644
+--- a/cloudinit/stages.py
++++ b/cloudinit/stages.py
+@@ -205,6 +205,7 @@ class Init(object):
+     def _initialize_filesystem(self):
+         util.ensure_dirs(self._initial_subdirs())
+         log_file = util.get_cfg_option_str(self.cfg, "def_log_file")
++        log_file_mode = util.get_cfg_option_int(self.cfg, "def_log_file_mode")
+         if log_file:
+             util.ensure_file(log_file, mode=0o640, preserve_mode=True)
+             perms = self.cfg.get("syslog_fix_perms")
+diff --git a/doc/examples/cloud-config.txt b/doc/examples/cloud-config.txt
+index a2b4a3fa..0ccf3147 100644
+--- a/doc/examples/cloud-config.txt
++++ b/doc/examples/cloud-config.txt
+@@ -414,10 +414,14 @@ timezone: US/Eastern
+ # if syslog_fix_perms is a list, it will iterate through and use the
+ # first pair that does not raise error.
+ #
++# 'def_log_file' will be created with mode 'def_log_file_mode', which
++# is specified as a numeric value and defaults to 0600.
++#
+ # the default values are '/var/log/cloud-init.log' and 'syslog:adm'
+ # the value of 'def_log_file' should match what is configured in logging
+ # if either is empty, then no change of ownership will be done
+ def_log_file: /var/log/my-logging-file.log
++def_log_file_mode: 0600
+ syslog_fix_perms: syslog:root
+ 
+ # you can set passwords for a user or multiple users
+-- 
+2.31.1
+

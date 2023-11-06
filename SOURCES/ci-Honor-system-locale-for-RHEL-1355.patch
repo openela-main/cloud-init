@@ -1,0 +1,135 @@
+From 53e3f8ab9008fec8400f96918c2129f7defe6a70 Mon Sep 17 00:00:00 2001
+From: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date: Fri, 10 Jun 2022 20:51:55 +0200
+Subject: [PATCH 1/3] Honor system locale for RHEL (#1355)
+
+RH-Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-MergeRequest: 29: Honor system locale for RHEL (#1355)
+RH-Commit: [1/1] d571126fe6add8dc34a22c869d4e1a07a7373d8d (eesposit/cloud-init-centos-)
+RH-Bugzilla: 2061604
+RH-Acked-by: Mohamed Gamal Morsy <mmorsy@redhat.com>
+RH-Acked-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+
+commit 58da7d856274e9ca2b507128d6f186e0e6abfe06
+Author: Wei Shi <wshi@redhat.com>
+Date:   Wed Mar 30 23:55:30 2022 +0800
+
+    Honor system locale for RHEL (#1355)
+
+    Make sure to use system locale as default on RHEL if locale is not
+    set in cloud-config.
+
+    RHEL has a pre-installed cloud image using C.UTF-8 for system locale
+    just like ubuntu-minimal cloud image, without this patch, locale
+    module will set it to en_US.UTF-8 from ds default value during config
+    stage.
+
+    Authored-by: Wei Shi <shi2wei3@hotmail.com>
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+---
+ cloudinit/distros/rhel.py               | 32 +++++++++++++++++++++++++
+ tests/unittests/distros/test_generic.py | 10 ++++----
+ tools/.github-cla-signers               |  1 +
+ 3 files changed, 39 insertions(+), 4 deletions(-)
+
+diff --git a/cloudinit/distros/rhel.py b/cloudinit/distros/rhel.py
+index 84744ece..320f4ba1 100644
+--- a/cloudinit/distros/rhel.py
++++ b/cloudinit/distros/rhel.py
+@@ -7,6 +7,7 @@
+ # Author: Joshua Harlow <harlowja@yahoo-inc.com>
+ #
+ # This file is part of cloud-init. See LICENSE file for license information.
++import os
+ 
+ from cloudinit import distros, helpers
+ from cloudinit import log as logging
+@@ -57,11 +58,25 @@ class Distro(distros.Distro):
+         # should only happen say once per instance...)
+         self._runner = helpers.Runners(paths)
+         self.osfamily = "redhat"
++        self.default_locale = "en_US.UTF-8"
++        self.system_locale = None
+         cfg["ssh_svcname"] = "sshd"
+ 
+     def install_packages(self, pkglist):
+         self.package_command("install", pkgs=pkglist)
+ 
++    def get_locale(self):
++        """Return the default locale if set, else use system locale"""
++
++        # read system locale value
++        if not self.system_locale:
++            self.system_locale = self._read_system_locale()
++
++        # Return system_locale setting if valid, else use default locale
++        return (
++            self.system_locale if self.system_locale else self.default_locale
++        )
++
+     def apply_locale(self, locale, out_fn=None):
+         if self.uses_systemd():
+             if not out_fn:
+@@ -75,6 +90,23 @@ class Distro(distros.Distro):
+         }
+         rhel_util.update_sysconfig_file(out_fn, locale_cfg)
+ 
++    def _read_system_locale(self, keyname="LANG"):
++        """Read system default locale setting, if present"""
++        if self.uses_systemd():
++            locale_fn = self.systemd_locale_conf_fn
++        else:
++            locale_fn = self.locale_conf_fn
++
++        if not locale_fn:
++            raise ValueError("Invalid path: %s" % locale_fn)
++
++        if os.path.exists(locale_fn):
++            (_exists, contents) = rhel_util.read_sysconfig_file(locale_fn)
++            if keyname in contents:
++                return contents[keyname]
++            else:
++                return None
++
+     def _write_hostname(self, hostname, filename):
+         # systemd will never update previous-hostname for us, so
+         # we need to do it ourselves
+diff --git a/tests/unittests/distros/test_generic.py b/tests/unittests/distros/test_generic.py
+index 93c5395c..fedc7300 100644
+--- a/tests/unittests/distros/test_generic.py
++++ b/tests/unittests/distros/test_generic.py
+@@ -187,12 +187,14 @@ class TestGenericDistro(helpers.FilesystemMockingTestCase):
+         locale = d.get_locale()
+         self.assertEqual("C.UTF-8", locale)
+ 
+-    def test_get_locale_rhel(self):
+-        """Test rhel distro returns NotImplementedError exception"""
++    @mock.patch("cloudinit.distros.rhel.Distro._read_system_locale")
++    def test_get_locale_rhel(self, m_locale):
++        """Test rhel distro returns locale set to C.UTF-8"""
++        m_locale.return_value = "C.UTF-8"
+         cls = distros.fetch("rhel")
+         d = cls("rhel", {}, None)
+-        with self.assertRaises(NotImplementedError):
+-            d.get_locale()
++        locale = d.get_locale()
++        self.assertEqual("C.UTF-8", locale)
+ 
+     def test_expire_passwd_uses_chpasswd(self):
+         """Test ubuntu.expire_passwd uses the passwd command."""
+diff --git a/tools/.github-cla-signers b/tools/.github-cla-signers
+index 9f71ea0c..9eb2ae38 100644
+--- a/tools/.github-cla-signers
++++ b/tools/.github-cla-signers
+@@ -70,6 +70,7 @@ renanrodrigo
+ rhansen
+ riedel
+ sarahwzadara
++shi2wei3
+ slingamn
+ slyon
+ smoser
+-- 
+2.35.1
+

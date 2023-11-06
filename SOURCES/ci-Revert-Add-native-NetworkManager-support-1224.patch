@@ -1,0 +1,2267 @@
+From 35bd50e66f636a3f3923b6980bdee3ba33f7457d Mon Sep 17 00:00:00 2001
+From: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date: Mon, 8 Aug 2022 10:01:16 +0200
+Subject: [PATCH 1/3] Revert "Add native NetworkManager support (#1224)"
+
+RH-Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-MergeRequest: 31: Revert "Revert "Setting highest autoconnect priority for network-scripts""
+RH-Commit: [1/3] 38dcbc9ec19412601e96305fcac09642c89d73b8 (eesposit/cloud-init-centos-)
+RH-Bugzilla: 2107463 2104389 2117532 2098501
+RH-Acked-by: Eduardo Otubo <otubo@redhat.com>
+RH-Acked-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+RH-Acked-by: Mohamed Gamal Morsy <mmorsy@redhat.com>
+
+NM is still not stable, revert it for now.
+
+This reverts commit 588deeb5b3f87ffe40d9ecaf6da3639176f806c4.
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+---
+ cloudinit/cmd/devel/net_convert.py     |   14 +-
+ cloudinit/net/activators.py            |   25 +-
+ cloudinit/net/network_manager.py       |  377 -------
+ cloudinit/net/renderers.py             |    3 -
+ cloudinit/net/sysconfig.py             |   37 +-
+ tests/unittests/test_net.py            | 1268 +++---------------------
+ tests/unittests/test_net_activators.py |   93 +-
+ 7 files changed, 193 insertions(+), 1624 deletions(-)
+ delete mode 100644 cloudinit/net/network_manager.py
+
+diff --git a/cloudinit/cmd/devel/net_convert.py b/cloudinit/cmd/devel/net_convert.py
+index 647fe07b..18b1e7ff 100755
+--- a/cloudinit/cmd/devel/net_convert.py
++++ b/cloudinit/cmd/devel/net_convert.py
+@@ -7,14 +7,7 @@ import os
+ import sys
+ 
+ from cloudinit import distros, log, safeyaml
+-from cloudinit.net import (
+-    eni,
+-    netplan,
+-    network_manager,
+-    network_state,
+-    networkd,
+-    sysconfig,
+-)
++from cloudinit.net import eni, netplan, network_state, networkd, sysconfig
+ from cloudinit.sources import DataSourceAzure as azure
+ from cloudinit.sources import DataSourceOVF as ovf
+ from cloudinit.sources.helpers import openstack
+@@ -81,7 +74,7 @@ def get_parser(parser=None):
+     parser.add_argument(
+         "-O",
+         "--output-kind",
+-        choices=["eni", "netplan", "networkd", "sysconfig", "network-manager"],
++        choices=["eni", "netplan", "networkd", "sysconfig"],
+         required=True,
+         help="The network config format to emit",
+     )
+@@ -155,9 +148,6 @@ def handle_args(name, args):
+     elif args.output_kind == "sysconfig":
+         r_cls = sysconfig.Renderer
+         config = distro.renderer_configs.get("sysconfig")
+-    elif args.output_kind == "network-manager":
+-        r_cls = network_manager.Renderer
+-        config = distro.renderer_configs.get("network-manager")
+     else:
+         raise RuntimeError("Invalid output_kind")
+ 
+diff --git a/cloudinit/net/activators.py b/cloudinit/net/activators.py
+index edbc0c06..e80c26df 100644
+--- a/cloudinit/net/activators.py
++++ b/cloudinit/net/activators.py
+@@ -1,14 +1,15 @@
+ # This file is part of cloud-init. See LICENSE file for license information.
+ import logging
++import os
+ from abc import ABC, abstractmethod
+ from typing import Iterable, List, Type
+ 
+ from cloudinit import subp, util
+ from cloudinit.net.eni import available as eni_available
+ from cloudinit.net.netplan import available as netplan_available
+-from cloudinit.net.network_manager import available as nm_available
+ from cloudinit.net.network_state import NetworkState
+ from cloudinit.net.networkd import available as networkd_available
++from cloudinit.net.sysconfig import NM_CFG_FILE
+ 
+ LOG = logging.getLogger(__name__)
+ 
+@@ -123,24 +124,20 @@ class IfUpDownActivator(NetworkActivator):
+ class NetworkManagerActivator(NetworkActivator):
+     @staticmethod
+     def available(target=None) -> bool:
+-        """Return true if NetworkManager can be used on this system."""
+-        return nm_available(target=target)
++        """Return true if network manager can be used on this system."""
++        config_present = os.path.isfile(
++            subp.target_path(target, path=NM_CFG_FILE)
++        )
++        nmcli_present = subp.which("nmcli", target=target)
++        return config_present and bool(nmcli_present)
+ 
+     @staticmethod
+     def bring_up_interface(device_name: str) -> bool:
+-        """Bring up connection using nmcli.
++        """Bring up interface using nmcli.
+ 
+         Return True is successful, otherwise return False
+         """
+-        from cloudinit.net.network_manager import conn_filename
+-
+-        filename = conn_filename(device_name)
+-        cmd = ["nmcli", "connection", "load", filename]
+-        if _alter_interface(cmd, device_name):
+-            cmd = ["nmcli", "connection", "up", "filename", filename]
+-        else:
+-            _alter_interface(["nmcli", "connection", "reload"], device_name)
+-            cmd = ["nmcli", "connection", "up", "ifname", device_name]
++        cmd = ["nmcli", "connection", "up", "ifname", device_name]
+         return _alter_interface(cmd, device_name)
+ 
+     @staticmethod
+@@ -149,7 +146,7 @@ class NetworkManagerActivator(NetworkActivator):
+ 
+         Return True is successful, otherwise return False
+         """
+-        cmd = ["nmcli", "device", "disconnect", device_name]
++        cmd = ["nmcli", "connection", "down", device_name]
+         return _alter_interface(cmd, device_name)
+ 
+ 
+diff --git a/cloudinit/net/network_manager.py b/cloudinit/net/network_manager.py
+deleted file mode 100644
+index 79b0fe0b..00000000
+--- a/cloudinit/net/network_manager.py
++++ /dev/null
+@@ -1,377 +0,0 @@
+-# Copyright 2022 Red Hat, Inc.
+-#
+-# Author: Lubomir Rintel <lkundrak@v3.sk>
+-# Fixes and suggestions contributed by James Falcon, Neal Gompa,
+-# Zbigniew Jędrzejewski-Szmek and Emanuele Giuseppe Esposito.
+-#
+-# This file is part of cloud-init. See LICENSE file for license information.
+-
+-import configparser
+-import io
+-import itertools
+-import os
+-import uuid
+-
+-from cloudinit import log as logging
+-from cloudinit import subp, util
+-
+-from . import renderer
+-from .network_state import is_ipv6_addr, subnet_is_ipv6
+-
+-NM_RUN_DIR = "/etc/NetworkManager"
+-NM_LIB_DIR = "/usr/lib/NetworkManager"
+-LOG = logging.getLogger(__name__)
+-
+-
+-class NMConnection:
+-    """Represents a NetworkManager connection profile."""
+-
+-    def __init__(self, con_id):
+-        """
+-        Initializes the connection with some very basic properties,
+-        notably the UUID so that the connection can be referred to.
+-        """
+-
+-        # Chosen by fair dice roll
+-        CI_NM_UUID = uuid.UUID("a3924cb8-09e0-43e9-890b-77972a800108")
+-
+-        self.config = configparser.ConfigParser()
+-        # Identity option name mapping, to achieve case sensitivity
+-        self.config.optionxform = str
+-
+-        self.config["connection"] = {
+-            "id": f"cloud-init {con_id}",
+-            "uuid": str(uuid.uuid5(CI_NM_UUID, con_id)),
+-        }
+-
+-        # This is not actually used anywhere, but may be useful in future
+-        self.config["user"] = {
+-            "org.freedesktop.NetworkManager.origin": "cloud-init"
+-        }
+-
+-    def _set_default(self, section, option, value):
+-        """
+-        Sets a property unless it's already set, ensuring the section
+-        exists.
+-        """
+-
+-        if not self.config.has_section(section):
+-            self.config[section] = {}
+-        if not self.config.has_option(section, option):
+-            self.config[section][option] = value
+-
+-    def _set_ip_method(self, family, subnet_type):
+-        """
+-        Ensures there's appropriate [ipv4]/[ipv6] for given family
+-        appropriate for given configuration type
+-        """
+-
+-        method_map = {
+-            "static": "manual",
+-            "dhcp6": "dhcp",
+-            "ipv6_slaac": "auto",
+-            "ipv6_dhcpv6-stateless": "auto",
+-            "ipv6_dhcpv6-stateful": "auto",
+-            "dhcp4": "auto",
+-            "dhcp": "auto",
+-        }
+-
+-        # Ensure we got an [ipvX] section
+-        self._set_default(family, "method", "disabled")
+-
+-        try:
+-            method = method_map[subnet_type]
+-        except KeyError:
+-            # What else can we do
+-            method = "auto"
+-            self.config[family]["may-fail"] = "true"
+-
+-        # Make sure we don't "downgrade" the method in case
+-        # we got conflicting subnets (e.g. static along with dhcp)
+-        if self.config[family]["method"] == "dhcp":
+-            return
+-        if self.config[family]["method"] == "auto" and method == "manual":
+-            return
+-
+-        self.config[family]["method"] = method
+-        self._set_default(family, "may-fail", "false")
+-        if family == "ipv6":
+-            self._set_default(family, "addr-gen-mode", "stable-privacy")
+-
+-    def _add_numbered(self, section, key_prefix, value):
+-        """
+-        Adds a numbered property, such as address<n> or route<n>, ensuring
+-        the appropriate value gets used for <n>.
+-        """
+-
+-        for index in itertools.count(1):
+-            key = f"{key_prefix}{index}"
+-            if not self.config.has_option(section, key):
+-                self.config[section][key] = value
+-                break
+-
+-    def _add_address(self, family, subnet):
+-        """
+-        Adds an ipv[46]address<n> property.
+-        """
+-
+-        value = subnet["address"] + "/" + str(subnet["prefix"])
+-        self._add_numbered(family, "address", value)
+-
+-    def _add_route(self, family, route):
+-        """
+-        Adds a ipv[46].route<n> property.
+-        """
+-
+-        value = route["network"] + "/" + str(route["prefix"])
+-        if "gateway" in route:
+-            value = value + "," + route["gateway"]
+-        self._add_numbered(family, "route", value)
+-
+-    def _add_nameserver(self, dns):
+-        """
+-        Extends the ipv[46].dns property with a name server.
+-        """
+-
+-        # FIXME: the subnet contains IPv4 and IPv6 name server mixed
+-        # together. We might be getting an IPv6 name server while
+-        # we're dealing with an IPv4 subnet. Sort this out by figuring
+-        # out the correct family and making sure a valid section exist.
+-        family = "ipv6" if is_ipv6_addr(dns) else "ipv4"
+-        self._set_default(family, "method", "disabled")
+-
+-        self._set_default(family, "dns", "")
+-        self.config[family]["dns"] = self.config[family]["dns"] + dns + ";"
+-
+-    def _add_dns_search(self, family, dns_search):
+-        """
+-        Extends the ipv[46].dns-search property with a name server.
+-        """
+-
+-        self._set_default(family, "dns-search", "")
+-        self.config[family]["dns-search"] = (
+-            self.config[family]["dns-search"] + ";".join(dns_search) + ";"
+-        )
+-
+-    def con_uuid(self):
+-        """
+-        Returns the connection UUID
+-        """
+-        return self.config["connection"]["uuid"]
+-
+-    def valid(self):
+-        """
+-        Can this be serialized into a meaningful connection profile?
+-        """
+-        return self.config.has_option("connection", "type")
+-
+-    @staticmethod
+-    def mac_addr(addr):
+-        """
+-        Sanitize a MAC address.
+-        """
+-        return addr.replace("-", ":").upper()
+-
+-    def render_interface(self, iface, renderer):
+-        """
+-        Integrate information from network state interface information
+-        into the connection. Most of the work is done here.
+-        """
+-
+-        # Initialize type & connectivity
+-        _type_map = {
+-            "physical": "ethernet",
+-            "vlan": "vlan",
+-            "bond": "bond",
+-            "bridge": "bridge",
+-            "infiniband": "infiniband",
+-            "loopback": None,
+-        }
+-
+-        if_type = _type_map[iface["type"]]
+-        if if_type is None:
+-            return
+-        if "bond-master" in iface:
+-            slave_type = "bond"
+-        else:
+-            slave_type = None
+-
+-        self.config["connection"]["type"] = if_type
+-        if slave_type is not None:
+-            self.config["connection"]["slave-type"] = slave_type
+-            self.config["connection"]["master"] = renderer.con_ref(
+-                iface[slave_type + "-master"]
+-            )
+-
+-        # Add type specific-section
+-        self.config[if_type] = {}
+-
+-        # These are the interface properties that map nicely
+-        # to NetworkManager properties
+-        _prop_map = {
+-            "bond": {
+-                "mode": "bond-mode",
+-                "miimon": "bond_miimon",
+-                "xmit_hash_policy": "bond-xmit-hash-policy",
+-                "num_grat_arp": "bond-num-grat-arp",
+-                "downdelay": "bond-downdelay",
+-                "updelay": "bond-updelay",
+-                "fail_over_mac": "bond-fail-over-mac",
+-                "primary_reselect": "bond-primary-reselect",
+-                "primary": "bond-primary",
+-            },
+-            "bridge": {
+-                "stp": "bridge_stp",
+-                "priority": "bridge_bridgeprio",
+-            },
+-            "vlan": {
+-                "id": "vlan_id",
+-            },
+-            "ethernet": {},
+-            "infiniband": {},
+-        }
+-
+-        device_mtu = iface["mtu"]
+-        ipv4_mtu = None
+-
+-        # Deal with Layer 3 configuration
+-        for subnet in iface["subnets"]:
+-            family = "ipv6" if subnet_is_ipv6(subnet) else "ipv4"
+-
+-            self._set_ip_method(family, subnet["type"])
+-            if "address" in subnet:
+-                self._add_address(family, subnet)
+-            if "gateway" in subnet:
+-                self.config[family]["gateway"] = subnet["gateway"]
+-            for route in subnet["routes"]:
+-                self._add_route(family, route)
+-            if "dns_nameservers" in subnet:
+-                for nameserver in subnet["dns_nameservers"]:
+-                    self._add_nameserver(nameserver)
+-            if "dns_search" in subnet:
+-                self._add_dns_search(family, subnet["dns_search"])
+-            if family == "ipv4" and "mtu" in subnet:
+-                ipv4_mtu = subnet["mtu"]
+-
+-        if ipv4_mtu is None:
+-            ipv4_mtu = device_mtu
+-        if not ipv4_mtu == device_mtu:
+-            LOG.warning(
+-                "Network config: ignoring %s device-level mtu:%s"
+-                " because ipv4 subnet-level mtu:%s provided.",
+-                iface["name"],
+-                device_mtu,
+-                ipv4_mtu,
+-            )
+-
+-        # Parse type-specific properties
+-        for nm_prop, key in _prop_map[if_type].items():
+-            if key not in iface:
+-                continue
+-            if iface[key] is None:
+-                continue
+-            if isinstance(iface[key], bool):
+-                self.config[if_type][nm_prop] = (
+-                    "true" if iface[key] else "false"
+-                )
+-            else:
+-                self.config[if_type][nm_prop] = str(iface[key])
+-
+-        # These ones need special treatment
+-        if if_type == "ethernet":
+-            if iface["wakeonlan"] is True:
+-                # NM_SETTING_WIRED_WAKE_ON_LAN_MAGIC
+-                self.config["ethernet"]["wake-on-lan"] = str(0x40)
+-            if ipv4_mtu is not None:
+-                self.config["ethernet"]["mtu"] = str(ipv4_mtu)
+-            if iface["mac_address"] is not None:
+-                self.config["ethernet"]["mac-address"] = self.mac_addr(
+-                    iface["mac_address"]
+-                )
+-        if if_type == "vlan" and "vlan-raw-device" in iface:
+-            self.config["vlan"]["parent"] = renderer.con_ref(
+-                iface["vlan-raw-device"]
+-            )
+-        if if_type == "bridge":
+-            # Bridge is ass-backwards compared to bond
+-            for port in iface["bridge_ports"]:
+-                port = renderer.get_conn(port)
+-                port._set_default("connection", "slave-type", "bridge")
+-                port._set_default("connection", "master", self.con_uuid())
+-            if iface["mac_address"] is not None:
+-                self.config["bridge"]["mac-address"] = self.mac_addr(
+-                    iface["mac_address"]
+-                )
+-        if if_type == "infiniband" and ipv4_mtu is not None:
+-            self.config["infiniband"]["transport-mode"] = "datagram"
+-            self.config["infiniband"]["mtu"] = str(ipv4_mtu)
+-            if iface["mac_address"] is not None:
+-                self.config["infiniband"]["mac-address"] = self.mac_addr(
+-                    iface["mac_address"]
+-                )
+-
+-        # Finish up
+-        if if_type == "bridge" or not self.config.has_option(
+-            if_type, "mac-address"
+-        ):
+-            self.config["connection"]["interface-name"] = iface["name"]
+-
+-    def dump(self):
+-        """
+-        Stringify.
+-        """
+-
+-        buf = io.StringIO()
+-        self.config.write(buf, space_around_delimiters=False)
+-        header = "# Generated by cloud-init. Changes will be lost.\n\n"
+-        return header + buf.getvalue()
+-
+-
+-class Renderer(renderer.Renderer):
+-    """Renders network information in a NetworkManager keyfile format."""
+-
+-    def __init__(self, config=None):
+-        self.connections = {}
+-
+-    def get_conn(self, con_id):
+-        return self.connections[con_id]
+-
+-    def con_ref(self, con_id):
+-        if con_id in self.connections:
+-            return self.connections[con_id].con_uuid()
+-        else:
+-            # Well, what can we do...
+-            return con_id
+-
+-    def render_network_state(self, network_state, templates=None, target=None):
+-        # First pass makes sure there's NMConnections for all known
+-        # interfaces that have UUIDs that can be linked to from related
+-        # interfaces
+-        for iface in network_state.iter_interfaces():
+-            self.connections[iface["name"]] = NMConnection(iface["name"])
+-
+-        # Now render the actual interface configuration
+-        for iface in network_state.iter_interfaces():
+-            conn = self.connections[iface["name"]]
+-            conn.render_interface(iface, self)
+-
+-        # And finally write the files
+-        for con_id, conn in self.connections.items():
+-            if not conn.valid():
+-                continue
+-            name = conn_filename(con_id, target)
+-            util.write_file(name, conn.dump(), 0o600)
+-
+-
+-def conn_filename(con_id, target=None):
+-    target_con_dir = subp.target_path(target, NM_RUN_DIR)
+-    con_file = f"cloud-init-{con_id}.nmconnection"
+-    return f"{target_con_dir}/system-connections/{con_file}"
+-
+-
+-def available(target=None):
+-    target_nm_dir = subp.target_path(target, NM_LIB_DIR)
+-    return os.path.exists(target_nm_dir)
+-
+-
+-# vi: ts=4 expandtab
+diff --git a/cloudinit/net/renderers.py b/cloudinit/net/renderers.py
+index 7edc34b5..c755f04c 100644
+--- a/cloudinit/net/renderers.py
++++ b/cloudinit/net/renderers.py
+@@ -8,7 +8,6 @@ from . import (
+     freebsd,
+     netbsd,
+     netplan,
+-    network_manager,
+     networkd,
+     openbsd,
+     renderer,
+@@ -20,7 +19,6 @@ NAME_TO_RENDERER = {
+     "freebsd": freebsd,
+     "netbsd": netbsd,
+     "netplan": netplan,
+-    "network-manager": network_manager,
+     "networkd": networkd,
+     "openbsd": openbsd,
+     "sysconfig": sysconfig,
+@@ -30,7 +28,6 @@ DEFAULT_PRIORITY = [
+     "eni",
+     "sysconfig",
+     "netplan",
+-    "network-manager",
+     "freebsd",
+     "netbsd",
+     "openbsd",
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index dc401d78..d8c53312 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -5,6 +5,8 @@ import io
+ import os
+ import re
+ 
++from configobj import ConfigObj
++
+ from cloudinit import log as logging
+ from cloudinit import subp, util
+ from cloudinit.distros.parsers import networkmanager_conf, resolv_conf
+@@ -64,6 +66,24 @@ def _quote_value(value):
+         return value
+ 
+ 
++def enable_ifcfg_rh(path):
++    """Add ifcfg-rh to NetworkManager.cfg plugins if main section is present"""
++    config = ConfigObj(path)
++    if "main" in config:
++        if "plugins" in config["main"]:
++            if "ifcfg-rh" in config["main"]["plugins"]:
++                return
++        else:
++            config["main"]["plugins"] = []
++
++        if isinstance(config["main"]["plugins"], list):
++            config["main"]["plugins"].append("ifcfg-rh")
++        else:
++            config["main"]["plugins"] = [config["main"]["plugins"], "ifcfg-rh"]
++        config.write()
++        LOG.debug("Enabled ifcfg-rh NetworkManager plugins")
++
++
+ class ConfigMap(object):
+     """Sysconfig like dictionary object."""
+ 
+@@ -1011,6 +1031,8 @@ class Renderer(renderer.Renderer):
+             netrules_content = self._render_persistent_net(network_state)
+             netrules_path = subp.target_path(target, self.netrules_path)
+             util.write_file(netrules_path, netrules_content, file_mode)
++        if available_nm(target=target):
++            enable_ifcfg_rh(subp.target_path(target, path=NM_CFG_FILE))
+ 
+         sysconfig_path = subp.target_path(target, templates.get("control"))
+         # Distros configuring /etc/sysconfig/network as a file e.g. Centos
+@@ -1049,9 +1071,14 @@ def _supported_vlan_names(rdev, vid):
+ 
+ 
+ def available(target=None):
+-    if not util.system_info()["variant"] in KNOWN_DISTROS:
+-        return False
++    sysconfig = available_sysconfig(target=target)
++    nm = available_nm(target=target)
++    return util.system_info()["variant"] in KNOWN_DISTROS and any(
++        [nm, sysconfig]
++    )
++
+ 
++def available_sysconfig(target=None):
+     expected = ["ifup", "ifdown"]
+     search = ["/sbin", "/usr/sbin"]
+     for p in expected:
+@@ -1068,4 +1095,10 @@ def available(target=None):
+     return False
+ 
+ 
++def available_nm(target=None):
++    if not os.path.isfile(subp.target_path(target, path=NM_CFG_FILE)):
++        return False
++    return True
++
++
+ # vi: ts=4 expandtab
+diff --git a/tests/unittests/test_net.py b/tests/unittests/test_net.py
+index ef21ad76..591241b3 100644
+--- a/tests/unittests/test_net.py
++++ b/tests/unittests/test_net.py
+@@ -21,7 +21,6 @@ from cloudinit.net import (
+     interface_has_own_mac,
+     natural_sort_key,
+     netplan,
+-    network_manager,
+     network_state,
+     networkd,
+     renderers,
+@@ -612,37 +611,6 @@ dns = none
+                 ),
+             ),
+         ],
+-        "expected_network_manager": [
+-            (
+-                "".join(
+-                    [
+-                        "etc/NetworkManager/system-connections",
+-                        "/cloud-init-eth0.nmconnection",
+-                    ]
+-                ),
+-                """
+-# Generated by cloud-init. Changes will be lost.
+-
+-[connection]
+-id=cloud-init eth0
+-uuid=1dd9a779-d327-56e1-8454-c65e2556c12c
+-type=ethernet
+-
+-[user]
+-org.freedesktop.NetworkManager.origin=cloud-init
+-
+-[ethernet]
+-mac-address=FA:16:3E:ED:9A:59
+-
+-[ipv4]
+-method=manual
+-may-fail=false
+-address1=172.19.1.34/22
+-route1=0.0.0.0/0,172.19.3.254
+-
+-""".lstrip(),
+-            ),
+-        ],
+     },
+     {
+         "in_data": {
+@@ -1105,50 +1073,6 @@ NETWORK_CONFIGS = {
+                 USERCTL=no"""
+             ),
+         },
+-        "expected_network_manager": {
+-            "cloud-init-eth1.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth1
+-                uuid=3c50eb47-7260-5a6d-801d-bd4f587d6b58
+-                type=ethernet
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=CF:D6:AF:48:E8:80
+-
+-                """
+-            ),
+-            "cloud-init-eth99.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth99
+-                uuid=b1b88000-1f03-5360-8377-1a2205efffb4
+-                type=ethernet
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=C0:D6:9F:2C:E8:80
+-
+-                [ipv4]
+-                method=auto
+-                may-fail=false
+-                address1=192.168.21.3/24
+-                route1=0.0.0.0/0,65.61.151.37
+-                dns=8.8.8.8;8.8.4.4;
+-                dns-search=barley.maas;sach.maas;
+-
+-                """
+-            ),
+-        },
+         "yaml": textwrap.dedent(
+             """
+             version: 1
+@@ -1221,34 +1145,6 @@ NETWORK_CONFIGS = {
+                 STARTMODE=auto"""
+             )
+         },
+-        "expected_network_manager": {
+-            "cloud-init-iface0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init iface0
+-                uuid=8ddfba48-857c-5e86-ac09-1b43eae0bf70
+-                type=ethernet
+-                interface-name=iface0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-
+-                [ipv4]
+-                method=auto
+-                may-fail=false
+-
+-                [ipv6]
+-                method=dhcp
+-                may-fail=false
+-                addr-gen-mode=stable-privacy
+-
+-                """
+-            ),
+-        },
+         "yaml": textwrap.dedent(
+             """\
+             version: 1
+@@ -1351,37 +1247,6 @@ NETWORK_CONFIGS = {
+                 """
+             ),
+         },
+-        "expected_network_manager": {
+-            "cloud-init-iface0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init iface0
+-                uuid=8ddfba48-857c-5e86-ac09-1b43eae0bf70
+-                type=ethernet
+-                interface-name=iface0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mtu=9000
+-
+-                [ipv4]
+-                method=manual
+-                may-fail=false
+-                address1=192.168.14.2/24
+-
+-                [ipv6]
+-                method=manual
+-                may-fail=false
+-                addr-gen-mode=stable-privacy
+-                address1=2001:1::1/64
+-
+-                """
+-            ),
+-        },
+     },
+     "v6_and_v4": {
+         "expected_sysconfig_opensuse": {
+@@ -1392,34 +1257,6 @@ NETWORK_CONFIGS = {
+                 STARTMODE=auto"""
+             )
+         },
+-        "expected_network_manager": {
+-            "cloud-init-iface0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init iface0
+-                uuid=8ddfba48-857c-5e86-ac09-1b43eae0bf70
+-                type=ethernet
+-                interface-name=iface0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-
+-                [ipv6]
+-                method=dhcp
+-                may-fail=false
+-                addr-gen-mode=stable-privacy
+-
+-                [ipv4]
+-                method=auto
+-                may-fail=false
+-
+-                """
+-            ),
+-        },
+         "yaml": textwrap.dedent(
+             """\
+             version: 1
+@@ -1493,30 +1330,6 @@ NETWORK_CONFIGS = {
+                 """
+             ),
+         },
+-        "expected_network_manager": {
+-            "cloud-init-iface0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init iface0
+-                uuid=8ddfba48-857c-5e86-ac09-1b43eae0bf70
+-                type=ethernet
+-                interface-name=iface0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-
+-                [ipv6]
+-                method=dhcp
+-                may-fail=false
+-                addr-gen-mode=stable-privacy
+-
+-                """
+-            ),
+-        },
+     },
+     "dhcpv6_accept_ra": {
+         "expected_eni": textwrap.dedent(
+@@ -1724,30 +1537,6 @@ NETWORK_CONFIGS = {
+             """
+             ),
+         },
+-        "expected_network_manager": {
+-            "cloud-init-iface0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init iface0
+-                uuid=8ddfba48-857c-5e86-ac09-1b43eae0bf70
+-                type=ethernet
+-                interface-name=iface0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-
+-                [ipv6]
+-                method=auto
+-                may-fail=false
+-                addr-gen-mode=stable-privacy
+-
+-                """
+-            ),
+-        },
+     },
+     "static6": {
+         "yaml": textwrap.dedent(
+@@ -1836,30 +1625,6 @@ NETWORK_CONFIGS = {
+             """
+             ),
+         },
+-        "expected_network_manager": {
+-            "cloud-init-iface0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init iface0
+-                uuid=8ddfba48-857c-5e86-ac09-1b43eae0bf70
+-                type=ethernet
+-                interface-name=iface0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-
+-                [ipv6]
+-                method=auto
+-                may-fail=false
+-                addr-gen-mode=stable-privacy
+-
+-                """
+-            ),
+-        },
+     },
+     "dhcpv6_stateful": {
+         "expected_eni": textwrap.dedent(
+@@ -1959,29 +1724,6 @@ NETWORK_CONFIGS = {
+             """
+             ),
+         },
+-        "expected_network_manager": {
+-            "cloud-init-iface0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init iface0
+-                uuid=8ddfba48-857c-5e86-ac09-1b43eae0bf70
+-                type=ethernet
+-                interface-name=iface0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-
+-                [ipv4]
+-                method=auto
+-                may-fail=false
+-
+-                """
+-            ),
+-        },
+         "yaml_v2": textwrap.dedent(
+             """\
+             version: 2
+@@ -2035,30 +1777,6 @@ NETWORK_CONFIGS = {
+             """
+             ),
+         },
+-        "expected_network_manager": {
+-            "cloud-init-iface0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init iface0
+-                uuid=8ddfba48-857c-5e86-ac09-1b43eae0bf70
+-                type=ethernet
+-                interface-name=iface0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                wake-on-lan=64
+-
+-                [ipv4]
+-                method=auto
+-                may-fail=false
+-
+-                """
+-            ),
+-        },
+         "yaml_v2": textwrap.dedent(
+             """\
+             version: 2
+@@ -2497,254 +2215,6 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 USERCTL=no"""
+             ),
+         },
+-        "expected_network_manager": {
+-            "cloud-init-eth3.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth3
+-                uuid=b7e95dda-7746-5bf8-bf33-6e5f3c926790
+-                type=ethernet
+-                slave-type=bridge
+-                master=dee46ce4-af7a-5e7c-aa08-b25533ae9213
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=66:BB:9F:2C:E8:80
+-
+-                """
+-            ),
+-            "cloud-init-eth5.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth5
+-                uuid=5fda13c7-9942-5e90-a41b-1d043bd725dc
+-                type=ethernet
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=98:BB:9F:2C:E8:8A
+-
+-                [ipv4]
+-                method=auto
+-                may-fail=false
+-
+-                """
+-            ),
+-            "cloud-init-ib0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init ib0
+-                uuid=11a1dda7-78b4-5529-beba-d9b5f549ad7b
+-                type=infiniband
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [infiniband]
+-                transport-mode=datagram
+-                mtu=9000
+-                mac-address=A0:00:02:20:FE:80:00:00:00:00:00:00:EC:0D:9A:03:00:15:E2:C1
+-
+-                [ipv4]
+-                method=manual
+-                may-fail=false
+-                address1=192.168.200.7/24
+-
+-                """
+-            ),
+-            "cloud-init-bond0.200.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init bond0.200
+-                uuid=88984a9c-ff22-5233-9267-86315e0acaa7
+-                type=vlan
+-                interface-name=bond0.200
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [vlan]
+-                id=200
+-                parent=54317911-f840-516b-a10d-82cb4c1f075c
+-
+-                [ipv4]
+-                method=auto
+-                may-fail=false
+-
+-                """
+-            ),
+-            "cloud-init-eth0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth0
+-                uuid=1dd9a779-d327-56e1-8454-c65e2556c12c
+-                type=ethernet
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=C0:D6:9F:2C:E8:80
+-
+-                """
+-            ),
+-            "cloud-init-eth4.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth4
+-                uuid=e27e4959-fb50-5580-b9a4-2073554627b9
+-                type=ethernet
+-                slave-type=bridge
+-                master=dee46ce4-af7a-5e7c-aa08-b25533ae9213
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=98:BB:9F:2C:E8:80
+-
+-                """
+-            ),
+-            "cloud-init-eth1.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth1
+-                uuid=3c50eb47-7260-5a6d-801d-bd4f587d6b58
+-                type=ethernet
+-                slave-type=bond
+-                master=54317911-f840-516b-a10d-82cb4c1f075c
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=AA:D6:9F:2C:E8:80
+-
+-                """
+-            ),
+-            "cloud-init-br0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init br0
+-                uuid=dee46ce4-af7a-5e7c-aa08-b25533ae9213
+-                type=bridge
+-                interface-name=br0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [bridge]
+-                stp=false
+-                priority=22
+-                mac-address=BB:BB:BB:BB:BB:AA
+-
+-                [ipv4]
+-                method=manual
+-                may-fail=false
+-                address1=192.168.14.2/24
+-
+-                [ipv6]
+-                method=manual
+-                may-fail=false
+-                addr-gen-mode=stable-privacy
+-                address1=2001:1::1/64
+-                route1=::/0,2001:4800:78ff:1b::1
+-
+-                """
+-            ),
+-            "cloud-init-eth0.101.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth0.101
+-                uuid=b5acec5e-db80-5935-8b02-0d5619fc42bf
+-                type=vlan
+-                interface-name=eth0.101
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [vlan]
+-                id=101
+-                parent=1dd9a779-d327-56e1-8454-c65e2556c12c
+-
+-                [ipv4]
+-                method=manual
+-                may-fail=false
+-                address1=192.168.0.2/24
+-                gateway=192.168.0.1
+-                dns=192.168.0.10;10.23.23.134;
+-                dns-search=barley.maas;sacchromyces.maas;brettanomyces.maas;
+-                address2=192.168.2.10/24
+-
+-                """
+-            ),
+-            "cloud-init-bond0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init bond0
+-                uuid=54317911-f840-516b-a10d-82cb4c1f075c
+-                type=bond
+-                interface-name=bond0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [bond]
+-                mode=active-backup
+-                miimon=100
+-                xmit_hash_policy=layer3+4
+-
+-                [ipv6]
+-                method=dhcp
+-                may-fail=false
+-                addr-gen-mode=stable-privacy
+-
+-                """
+-            ),
+-            "cloud-init-eth2.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth2
+-                uuid=5559a242-3421-5fdd-896e-9cb8313d5804
+-                type=ethernet
+-                slave-type=bond
+-                master=54317911-f840-516b-a10d-82cb4c1f075c
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=C0:BB:9F:2C:E8:80
+-
+-                """
+-            ),
+-        },
+         "yaml": textwrap.dedent(
+             """
+             version: 1
+@@ -2933,10 +2403,10 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                   - type: static
+                     address: 2001:1::1/92
+                     routes:
+-                        - gateway: 2001:67c:1562::1
++                        - gateway: 2001:67c:1562:1
+                           network: 2001:67c:1
+                           netmask: "ffff:ffff::"
+-                        - gateway: 3001:67c:15::1
++                        - gateway: 3001:67c:1562:1
+                           network: 3001:67c:1
+                           netmask: "ffff:ffff::"
+                           metric: 10000
+@@ -2981,10 +2451,10 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                      -   to: 10.1.3.0/24
+                          via: 192.168.0.3
+                      -   to: 2001:67c:1/32
+-                         via: 2001:67c:1562::1
++                         via: 2001:67c:1562:1
+                      -   metric: 10000
+                          to: 3001:67c:1/32
+-                         via: 3001:67c:15::1
++                         via: 3001:67c:1562:1
+         """
+         ),
+         "expected_eni": textwrap.dedent(
+@@ -3044,11 +2514,11 @@ iface bond0 inet static
+ # control-alias bond0
+ iface bond0 inet6 static
+     address 2001:1::1/92
+-    post-up route add -A inet6 2001:67c:1/32 gw 2001:67c:1562::1 || true
+-    pre-down route del -A inet6 2001:67c:1/32 gw 2001:67c:1562::1 || true
+-    post-up route add -A inet6 3001:67c:1/32 gw 3001:67c:15::1 metric 10000 \
++    post-up route add -A inet6 2001:67c:1/32 gw 2001:67c:1562:1 || true
++    pre-down route del -A inet6 2001:67c:1/32 gw 2001:67c:1562:1 || true
++    post-up route add -A inet6 3001:67c:1/32 gw 3001:67c:1562:1 metric 10000 \
+ || true
+-    pre-down route del -A inet6 3001:67c:1/32 gw 3001:67c:15::1 metric 10000 \
++    pre-down route del -A inet6 3001:67c:1/32 gw 3001:67c:1562:1 metric 10000 \
+ || true
+         """
+         ),
+@@ -3091,8 +2561,8 @@ iface bond0 inet6 static
+                 -   to: 2001:67c:1562:8007::1/64
+                     via: 2001:67c:1562:8007::aac:40b2
+                 -   metric: 10000
+-                    to: 3001:67c:15:8007::1/64
+-                    via: 3001:67c:15:8007::aac:40b2
++                    to: 3001:67c:1562:8007::1/64
++                    via: 3001:67c:1562:8007::aac:40b2
+             """
+         ),
+         "expected_netplan-v2": textwrap.dedent(
+@@ -3124,8 +2594,8 @@ iface bond0 inet6 static
+                      -   to: 2001:67c:1562:8007::1/64
+                          via: 2001:67c:1562:8007::aac:40b2
+                      -   metric: 10000
+-                         to: 3001:67c:15:8007::1/64
+-                         via: 3001:67c:15:8007::aac:40b2
++                         to: 3001:67c:1562:8007::1/64
++                         via: 3001:67c:1562:8007::aac:40b2
+              ethernets:
+                  eth0:
+                      match:
+@@ -3224,8 +2694,8 @@ iface bond0 inet6 static
+                 """\
+         # Created by cloud-init on instance boot automatically, do not edit.
+         #
+-        2001:67c:1/32 via 2001:67c:1562::1  dev bond0
+-        3001:67c:1/32 via 3001:67c:15::1 metric 10000 dev bond0
++        2001:67c:1/32 via 2001:67c:1562:1  dev bond0
++        3001:67c:1/32 via 3001:67c:1562:1 metric 10000 dev bond0
+             """
+             ),
+             "route-bond0": textwrap.dedent(
+@@ -3248,88 +2718,6 @@ iface bond0 inet6 static
+         """
+             ),
+         },
+-        "expected_network_manager": {
+-            "cloud-init-bond0s0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init bond0s0
+-                uuid=09d0b5b9-67e7-5577-a1af-74d1cf17a71e
+-                type=ethernet
+-                slave-type=bond
+-                master=54317911-f840-516b-a10d-82cb4c1f075c
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=AA:BB:CC:DD:E8:00
+-
+-                """
+-            ),
+-            "cloud-init-bond0s1.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init bond0s1
+-                uuid=4d9aca96-b515-5630-ad83-d13daac7f9d0
+-                type=ethernet
+-                slave-type=bond
+-                master=54317911-f840-516b-a10d-82cb4c1f075c
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=AA:BB:CC:DD:E8:01
+-
+-                """
+-            ),
+-            "cloud-init-bond0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init bond0
+-                uuid=54317911-f840-516b-a10d-82cb4c1f075c
+-                type=bond
+-                interface-name=bond0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [bond]
+-                mode=active-backup
+-                miimon=100
+-                xmit_hash_policy=layer3+4
+-                num_grat_arp=5
+-                downdelay=10
+-                updelay=20
+-                fail_over_mac=active
+-                primary_reselect=always
+-                primary=bond0s0
+-
+-                [ipv4]
+-                method=manual
+-                may-fail=false
+-                address1=192.168.0.2/24
+-                gateway=192.168.0.1
+-                route1=10.1.3.0/24,192.168.0.3
+-                address2=192.168.1.2/24
+-
+-                [ipv6]
+-                method=manual
+-                may-fail=false
+-                addr-gen-mode=stable-privacy
+-                address1=2001:1::1/92
+-                route1=2001:67c:1/32,2001:67c:1562::1
+-                route2=3001:67c:1/32,3001:67c:15::1
+-
+-                """
+-            ),
+-        },
+     },
+     "vlan": {
+         "yaml": textwrap.dedent(
+@@ -3413,58 +2801,6 @@ iface bond0 inet6 static
+                 VLAN=yes"""
+             ),
+         },
+-        "expected_network_manager": {
+-            "cloud-init-en0.99.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init en0.99
+-                uuid=f594e2ed-f107-51df-b225-1dc530a5356b
+-                type=vlan
+-                interface-name=en0.99
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [vlan]
+-                id=99
+-                parent=e0ca478b-8d84-52ab-8fae-628482c629b5
+-
+-                [ipv4]
+-                method=manual
+-                may-fail=false
+-                address1=192.168.2.2/24
+-                address2=192.168.1.2/24
+-                gateway=192.168.1.1
+-
+-                [ipv6]
+-                method=manual
+-                may-fail=false
+-                addr-gen-mode=stable-privacy
+-                address1=2001:1::bbbb/96
+-                route1=::/0,2001:1::1
+-
+-                """
+-            ),
+-            "cloud-init-en0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init en0
+-                uuid=e0ca478b-8d84-52ab-8fae-628482c629b5
+-                type=ethernet
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=AA:BB:CC:DD:E8:00
+-
+-                """
+-            ),
+-        },
+     },
+     "bridge": {
+         "yaml": textwrap.dedent(
+@@ -3573,82 +2909,6 @@ iface bond0 inet6 static
+                 """
+             ),
+         },
+-        "expected_network_manager": {
+-            "cloud-init-br0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init br0
+-                uuid=dee46ce4-af7a-5e7c-aa08-b25533ae9213
+-                type=bridge
+-                interface-name=br0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [bridge]
+-                stp=false
+-                priority=22
+-
+-                [ipv4]
+-                method=manual
+-                may-fail=false
+-                address1=192.168.2.2/24
+-
+-                """
+-            ),
+-            "cloud-init-eth0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth0
+-                uuid=1dd9a779-d327-56e1-8454-c65e2556c12c
+-                type=ethernet
+-                slave-type=bridge
+-                master=dee46ce4-af7a-5e7c-aa08-b25533ae9213
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=52:54:00:12:34:00
+-
+-                [ipv6]
+-                method=manual
+-                may-fail=false
+-                addr-gen-mode=stable-privacy
+-                address1=2001:1::100/96
+-
+-                """
+-            ),
+-            "cloud-init-eth1.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth1
+-                uuid=3c50eb47-7260-5a6d-801d-bd4f587d6b58
+-                type=ethernet
+-                slave-type=bridge
+-                master=dee46ce4-af7a-5e7c-aa08-b25533ae9213
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=52:54:00:12:34:01
+-
+-                [ipv6]
+-                method=manual
+-                may-fail=false
+-                addr-gen-mode=stable-privacy
+-                address1=2001:1::101/96
+-
+-                """
+-            ),
+-        },
+     },
+     "manual": {
+         "yaml": textwrap.dedent(
+@@ -3777,92 +3037,25 @@ iface bond0 inet6 static
+                 """
+             ),
+         },
+-        "expected_network_manager": {
+-            "cloud-init-eth0.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth0
+-                uuid=1dd9a779-d327-56e1-8454-c65e2556c12c
+-                type=ethernet
++    },
++}
+ 
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+ 
+-                [ethernet]
+-                mac-address=52:54:00:12:34:00
+-
+-                [ipv4]
+-                method=manual
+-                may-fail=false
+-                address1=192.168.1.2/24
+-
+-                """
+-            ),
+-            "cloud-init-eth1.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth1
+-                uuid=3c50eb47-7260-5a6d-801d-bd4f587d6b58
+-                type=ethernet
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mtu=1480
+-                mac-address=52:54:00:12:34:AA
+-
+-                [ipv4]
+-                method=auto
+-                may-fail=true
+-
+-                """
+-            ),
+-            "cloud-init-eth2.nmconnection": textwrap.dedent(
+-                """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth2
+-                uuid=5559a242-3421-5fdd-896e-9cb8313d5804
+-                type=ethernet
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=52:54:00:12:34:FF
+-
+-                [ipv4]
+-                method=auto
+-                may-fail=true
+-
+-                """
+-            ),
+-        },
+-    },
+-}
+-
+-
+-CONFIG_V1_EXPLICIT_LOOPBACK = {
+-    "version": 1,
+-    "config": [
+-        {
+-            "name": "eth0",
+-            "type": "physical",
+-            "subnets": [{"control": "auto", "type": "dhcp"}],
+-        },
+-        {
+-            "name": "lo",
+-            "type": "loopback",
+-            "subnets": [{"control": "auto", "type": "loopback"}],
+-        },
+-    ],
+-}
++CONFIG_V1_EXPLICIT_LOOPBACK = {
++    "version": 1,
++    "config": [
++        {
++            "name": "eth0",
++            "type": "physical",
++            "subnets": [{"control": "auto", "type": "dhcp"}],
++        },
++        {
++            "name": "lo",
++            "type": "loopback",
++            "subnets": [{"control": "auto", "type": "loopback"}],
++        },
++    ],
++}
+ 
+ 
+ CONFIG_V1_SIMPLE_SUBNET = {
+@@ -4304,6 +3497,7 @@ class TestRhelSysConfigRendering(CiTestCase):
+ 
+     with_logs = True
+ 
++    nm_cfg_file = "/etc/NetworkManager/NetworkManager.conf"
+     scripts_dir = "/etc/sysconfig/network-scripts"
+     header = (
+         "# Created by cloud-init on instance boot automatically, "
+@@ -4878,6 +4072,78 @@ USERCTL=no
+         self._compare_files_to_expected(entry[self.expected_name], found)
+         self._assert_headers(found)
+ 
++    def test_check_ifcfg_rh(self):
++        """ifcfg-rh plugin is added NetworkManager.conf if conf present."""
++        render_dir = self.tmp_dir()
++        nm_cfg = subp.target_path(render_dir, path=self.nm_cfg_file)
++        util.ensure_dir(os.path.dirname(nm_cfg))
++
++        # write a template nm.conf, note plugins is a list here
++        with open(nm_cfg, "w") as fh:
++            fh.write("# test_check_ifcfg_rh\n[main]\nplugins=foo,bar\n")
++        self.assertTrue(os.path.exists(nm_cfg))
++
++        # render and read
++        entry = NETWORK_CONFIGS["small"]
++        found = self._render_and_read(
++            network_config=yaml.load(entry["yaml"]), dir=render_dir
++        )
++        self._compare_files_to_expected(entry[self.expected_name], found)
++        self._assert_headers(found)
++
++        # check ifcfg-rh is in the 'plugins' list
++        config = sysconfig.ConfigObj(nm_cfg)
++        self.assertIn("ifcfg-rh", config["main"]["plugins"])
++
++    def test_check_ifcfg_rh_plugins_string(self):
++        """ifcfg-rh plugin is append when plugins is a string."""
++        render_dir = self.tmp_path("render")
++        os.makedirs(render_dir)
++        nm_cfg = subp.target_path(render_dir, path=self.nm_cfg_file)
++        util.ensure_dir(os.path.dirname(nm_cfg))
++
++        # write a template nm.conf, note plugins is a value here
++        util.write_file(nm_cfg, "# test_check_ifcfg_rh\n[main]\nplugins=foo\n")
++
++        # render and read
++        entry = NETWORK_CONFIGS["small"]
++        found = self._render_and_read(
++            network_config=yaml.load(entry["yaml"]), dir=render_dir
++        )
++        self._compare_files_to_expected(entry[self.expected_name], found)
++        self._assert_headers(found)
++
++        # check raw content has plugin
++        nm_file_content = util.load_file(nm_cfg)
++        self.assertIn("ifcfg-rh", nm_file_content)
++
++        # check ifcfg-rh is in the 'plugins' list
++        config = sysconfig.ConfigObj(nm_cfg)
++        self.assertIn("ifcfg-rh", config["main"]["plugins"])
++
++    def test_check_ifcfg_rh_plugins_no_plugins(self):
++        """enable_ifcfg_plugin creates plugins value if missing."""
++        render_dir = self.tmp_path("render")
++        os.makedirs(render_dir)
++        nm_cfg = subp.target_path(render_dir, path=self.nm_cfg_file)
++        util.ensure_dir(os.path.dirname(nm_cfg))
++
++        # write a template nm.conf, note plugins is missing
++        util.write_file(nm_cfg, "# test_check_ifcfg_rh\n[main]\n")
++        self.assertTrue(os.path.exists(nm_cfg))
++
++        # render and read
++        entry = NETWORK_CONFIGS["small"]
++        found = self._render_and_read(
++            network_config=yaml.load(entry["yaml"]), dir=render_dir
++        )
++        self._compare_files_to_expected(entry[self.expected_name], found)
++        self._assert_headers(found)
++
++        # check ifcfg-rh is in the 'plugins' list
++        config = sysconfig.ConfigObj(nm_cfg)
++        self.assertIn("ifcfg-rh", config["main"]["plugins"])
++
+     def test_netplan_dhcp_false_disable_dhcp_in_state(self):
+         """netplan config with dhcp[46]: False should not add dhcp in state"""
+         net_config = yaml.load(NETPLAN_DHCP_FALSE)
+@@ -5433,281 +4699,6 @@ STARTMODE=auto
+         self._assert_headers(found)
+ 
+ 
+-@mock.patch(
+-    "cloudinit.net.is_openvswitch_internal_interface",
+-    mock.Mock(return_value=False),
+-)
+-class TestNetworkManagerRendering(CiTestCase):
+-
+-    with_logs = True
+-
+-    scripts_dir = "/etc/NetworkManager/system-connections"
+-
+-    expected_name = "expected_network_manager"
+-
+-    def _get_renderer(self):
+-        return network_manager.Renderer()
+-
+-    def _render_and_read(self, network_config=None, state=None, dir=None):
+-        if dir is None:
+-            dir = self.tmp_dir()
+-
+-        if network_config:
+-            ns = network_state.parse_net_config_data(network_config)
+-        elif state:
+-            ns = state
+-        else:
+-            raise ValueError("Expected data or state, got neither")
+-
+-        renderer = self._get_renderer()
+-        renderer.render_network_state(ns, target=dir)
+-        return dir2dict(dir)
+-
+-    def _compare_files_to_expected(self, expected, found):
+-        orig_maxdiff = self.maxDiff
+-        expected_d = dict(
+-            (os.path.join(self.scripts_dir, k), v) for k, v in expected.items()
+-        )
+-
+-        try:
+-            self.maxDiff = None
+-            self.assertEqual(expected_d, found)
+-        finally:
+-            self.maxDiff = orig_maxdiff
+-
+-    @mock.patch("cloudinit.net.util.get_cmdline", return_value="root=myroot")
+-    @mock.patch("cloudinit.net.sys_dev_path")
+-    @mock.patch("cloudinit.net.read_sys_net")
+-    @mock.patch("cloudinit.net.get_devicelist")
+-    def test_default_generation(
+-        self,
+-        mock_get_devicelist,
+-        mock_read_sys_net,
+-        mock_sys_dev_path,
+-        m_get_cmdline,
+-    ):
+-        tmp_dir = self.tmp_dir()
+-        _setup_test(
+-            tmp_dir, mock_get_devicelist, mock_read_sys_net, mock_sys_dev_path
+-        )
+-
+-        network_cfg = net.generate_fallback_config()
+-        ns = network_state.parse_net_config_data(
+-            network_cfg, skip_broken=False
+-        )
+-
+-        render_dir = os.path.join(tmp_dir, "render")
+-        os.makedirs(render_dir)
+-
+-        renderer = self._get_renderer()
+-        renderer.render_network_state(ns, target=render_dir)
+-
+-        found = dir2dict(render_dir)
+-        self._compare_files_to_expected(
+-            {
+-                "cloud-init-eth1000.nmconnection": textwrap.dedent(
+-                    """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth1000
+-                uuid=8c517500-0c95-5308-9c8a-3092eebc44eb
+-                type=ethernet
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=07:1C:C6:75:A4:BE
+-
+-                [ipv4]
+-                method=auto
+-                may-fail=false
+-
+-                """
+-                ),
+-            },
+-            found,
+-        )
+-
+-    def test_openstack_rendering_samples(self):
+-        for os_sample in OS_SAMPLES:
+-            render_dir = self.tmp_dir()
+-            ex_input = os_sample["in_data"]
+-            ex_mac_addrs = os_sample["in_macs"]
+-            network_cfg = openstack.convert_net_json(
+-                ex_input, known_macs=ex_mac_addrs
+-            )
+-            ns = network_state.parse_net_config_data(
+-                network_cfg, skip_broken=False
+-            )
+-            renderer = self._get_renderer()
+-            # render a multiple times to simulate reboots
+-            renderer.render_network_state(ns, target=render_dir)
+-            renderer.render_network_state(ns, target=render_dir)
+-            renderer.render_network_state(ns, target=render_dir)
+-            for fn, expected_content in os_sample.get(self.expected_name, []):
+-                with open(os.path.join(render_dir, fn)) as fh:
+-                    self.assertEqual(expected_content, fh.read())
+-
+-    def test_network_config_v1_samples(self):
+-        ns = network_state.parse_net_config_data(CONFIG_V1_SIMPLE_SUBNET)
+-        render_dir = self.tmp_path("render")
+-        os.makedirs(render_dir)
+-        renderer = self._get_renderer()
+-        renderer.render_network_state(ns, target=render_dir)
+-        found = dir2dict(render_dir)
+-        self._compare_files_to_expected(
+-            {
+-                "cloud-init-interface0.nmconnection": textwrap.dedent(
+-                    """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init interface0
+-                uuid=8b6862ed-dbd6-5830-93f7-a91451c13828
+-                type=ethernet
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-                mac-address=52:54:00:12:34:00
+-
+-                [ipv4]
+-                method=manual
+-                may-fail=false
+-                address1=10.0.2.15/24
+-                gateway=10.0.2.2
+-
+-                """
+-                ),
+-            },
+-            found,
+-        )
+-
+-    def test_config_with_explicit_loopback(self):
+-        render_dir = self.tmp_path("render")
+-        os.makedirs(render_dir)
+-        ns = network_state.parse_net_config_data(CONFIG_V1_EXPLICIT_LOOPBACK)
+-        renderer = self._get_renderer()
+-        renderer.render_network_state(ns, target=render_dir)
+-        found = dir2dict(render_dir)
+-        self._compare_files_to_expected(
+-            {
+-                "cloud-init-eth0.nmconnection": textwrap.dedent(
+-                    """\
+-                # Generated by cloud-init. Changes will be lost.
+-
+-                [connection]
+-                id=cloud-init eth0
+-                uuid=1dd9a779-d327-56e1-8454-c65e2556c12c
+-                type=ethernet
+-                interface-name=eth0
+-
+-                [user]
+-                org.freedesktop.NetworkManager.origin=cloud-init
+-
+-                [ethernet]
+-
+-                [ipv4]
+-                method=auto
+-                may-fail=false
+-
+-                """
+-                ),
+-            },
+-            found,
+-        )
+-
+-    def test_bond_config(self):
+-        entry = NETWORK_CONFIGS["bond"]
+-        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-
+-    def test_vlan_config(self):
+-        entry = NETWORK_CONFIGS["vlan"]
+-        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-
+-    def test_bridge_config(self):
+-        entry = NETWORK_CONFIGS["bridge"]
+-        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-
+-    def test_manual_config(self):
+-        entry = NETWORK_CONFIGS["manual"]
+-        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-
+-    def test_all_config(self):
+-        entry = NETWORK_CONFIGS["all"]
+-        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-        self.assertNotIn(
+-            "WARNING: Network config: ignoring eth0.101 device-level mtu",
+-            self.logs.getvalue(),
+-        )
+-
+-    def test_small_config(self):
+-        entry = NETWORK_CONFIGS["small"]
+-        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-
+-    def test_v4_and_v6_static_config(self):
+-        entry = NETWORK_CONFIGS["v4_and_v6_static"]
+-        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-        expected_msg = (
+-            "WARNING: Network config: ignoring iface0 device-level mtu:8999"
+-            " because ipv4 subnet-level mtu:9000 provided."
+-        )
+-        self.assertIn(expected_msg, self.logs.getvalue())
+-
+-    def test_dhcpv6_only_config(self):
+-        entry = NETWORK_CONFIGS["dhcpv6_only"]
+-        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-
+-    def test_simple_render_ipv6_slaac(self):
+-        entry = NETWORK_CONFIGS["ipv6_slaac"]
+-        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-
+-    def test_dhcpv6_stateless_config(self):
+-        entry = NETWORK_CONFIGS["dhcpv6_stateless"]
+-        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-
+-    def test_wakeonlan_disabled_config_v2(self):
+-        entry = NETWORK_CONFIGS["wakeonlan_disabled"]
+-        found = self._render_and_read(
+-            network_config=yaml.load(entry["yaml_v2"])
+-        )
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-
+-    def test_wakeonlan_enabled_config_v2(self):
+-        entry = NETWORK_CONFIGS["wakeonlan_enabled"]
+-        found = self._render_and_read(
+-            network_config=yaml.load(entry["yaml_v2"])
+-        )
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-
+-    def test_render_v4_and_v6(self):
+-        entry = NETWORK_CONFIGS["v4_and_v6"]
+-        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-
+-    def test_render_v6_and_v4(self):
+-        entry = NETWORK_CONFIGS["v6_and_v4"]
+-        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
+-        self._compare_files_to_expected(entry[self.expected_name], found)
+-
+-
+-@mock.patch(
+-    "cloudinit.net.is_openvswitch_internal_interface",
+-    mock.Mock(return_value=False),
+-)
+ class TestEniNetRendering(CiTestCase):
+     @mock.patch("cloudinit.net.util.get_cmdline", return_value="root=myroot")
+     @mock.patch("cloudinit.net.sys_dev_path")
+@@ -7145,9 +6136,9 @@ class TestNetworkdRoundTrip(CiTestCase):
+ 
+ class TestRenderersSelect:
+     @pytest.mark.parametrize(
+-        "renderer_selected,netplan,eni,sys,network_manager,networkd",
++        "renderer_selected,netplan,eni,nm,scfg,sys,networkd",
+         (
+-            # -netplan -ifupdown -sys -network-manager -networkd raises error
++            # -netplan -ifupdown -nm -scfg -sys raises error
+             (
+                 net.RendererNotFoundError,
+                 False,
+@@ -7155,51 +6146,52 @@ class TestRenderersSelect:
+                 False,
+                 False,
+                 False,
++                False,
+             ),
+-            # -netplan +ifupdown -sys -nm -networkd selects eni
+-            ("eni", False, True, False, False, False),
+-            # +netplan +ifupdown -sys -nm -networkd selects eni
+-            ("eni", True, True, False, False, False),
+-            # +netplan -ifupdown -sys -nm -networkd selects netplan
+-            ("netplan", True, False, False, False, False),
+-            # +netplan -ifupdown -sys -nm -networkd selects netplan
+-            ("netplan", True, False, False, False, False),
+-            # -netplan -ifupdown +sys -nm -networkd selects sysconfig
+-            ("sysconfig", False, False, True, False, False),
+-            # -netplan -ifupdown +sys +nm -networkd selects sysconfig
+-            ("sysconfig", False, False, True, True, False),
+-            # -netplan -ifupdown -sys +nm -networkd selects nm
+-            ("network-manager", False, False, False, True, False),
+-            # -netplan -ifupdown -sys +nm +networkd selects nm
+-            ("network-manager", False, False, False, True, True),
+-            # -netplan -ifupdown -sys -nm +networkd selects networkd
+-            ("networkd", False, False, False, False, True),
++            # -netplan +ifupdown -nm -scfg -sys selects eni
++            ("eni", False, True, False, False, False, False),
++            # +netplan +ifupdown -nm -scfg -sys selects eni
++            ("eni", True, True, False, False, False, False),
++            # +netplan -ifupdown -nm -scfg -sys selects netplan
++            ("netplan", True, False, False, False, False, False),
++            # Ubuntu with Network-Manager installed
++            # +netplan -ifupdown +nm -scfg -sys selects netplan
++            ("netplan", True, False, True, False, False, False),
++            # Centos/OpenSuse with Network-Manager installed selects sysconfig
++            # -netplan -ifupdown +nm -scfg +sys selects netplan
++            ("sysconfig", False, False, True, False, True, False),
++            # -netplan -ifupdown -nm -scfg -sys +networkd selects networkd
++            ("networkd", False, False, False, False, False, True),
+         ),
+     )
+     @mock.patch("cloudinit.net.renderers.networkd.available")
+-    @mock.patch("cloudinit.net.renderers.network_manager.available")
+     @mock.patch("cloudinit.net.renderers.netplan.available")
+     @mock.patch("cloudinit.net.renderers.sysconfig.available")
++    @mock.patch("cloudinit.net.renderers.sysconfig.available_sysconfig")
++    @mock.patch("cloudinit.net.renderers.sysconfig.available_nm")
+     @mock.patch("cloudinit.net.renderers.eni.available")
+     def test_valid_renderer_from_defaults_depending_on_availability(
+         self,
+         m_eni_avail,
++        m_nm_avail,
++        m_scfg_avail,
+         m_sys_avail,
+         m_netplan_avail,
+-        m_network_manager_avail,
+         m_networkd_avail,
+         renderer_selected,
+         netplan,
+         eni,
++        nm,
++        scfg,
+         sys,
+-        network_manager,
+         networkd,
+     ):
+         """Assert proper renderer per DEFAULT_PRIORITY given availability."""
+         m_eni_avail.return_value = eni  # ifupdown pkg presence
++        m_nm_avail.return_value = nm  # network-manager presence
++        m_scfg_avail.return_value = scfg  # sysconfig presence
+         m_sys_avail.return_value = sys  # sysconfig/ifup/down presence
+         m_netplan_avail.return_value = netplan  # netplan presence
+-        m_network_manager_avail.return_value = network_manager  # NM presence
+         m_networkd_avail.return_value = networkd  # networkd presence
+         if isinstance(renderer_selected, str):
+             (renderer_name, _rnd_class) = renderers.select(
+@@ -7257,7 +6249,7 @@ class TestNetRenderers(CiTestCase):
+             priority=["sysconfig", "eni"],
+         )
+ 
+-    @mock.patch("cloudinit.net.sysconfig.available")
++    @mock.patch("cloudinit.net.sysconfig.available_sysconfig")
+     @mock.patch("cloudinit.util.system_info")
+     def test_sysconfig_available_uses_variant_mapping(self, m_info, m_avail):
+         m_avail.return_value = True
+diff --git a/tests/unittests/test_net_activators.py b/tests/unittests/test_net_activators.py
+index 4525c49c..3c29e2f7 100644
+--- a/tests/unittests/test_net_activators.py
++++ b/tests/unittests/test_net_activators.py
+@@ -41,20 +41,18 @@ NETPLAN_CALL_LIST = [
+ 
+ @pytest.fixture
+ def available_mocks():
+-    mocks = namedtuple("Mocks", "m_which, m_file, m_exists")
++    mocks = namedtuple("Mocks", "m_which, m_file")
+     with patch("cloudinit.subp.which", return_value=True) as m_which:
+         with patch("os.path.isfile", return_value=True) as m_file:
+-            with patch("os.path.exists", return_value=True) as m_exists:
+-                yield mocks(m_which, m_file, m_exists)
++            yield mocks(m_which, m_file)
+ 
+ 
+ @pytest.fixture
+ def unavailable_mocks():
+-    mocks = namedtuple("Mocks", "m_which, m_file, m_exists")
++    mocks = namedtuple("Mocks", "m_which, m_file")
+     with patch("cloudinit.subp.which", return_value=False) as m_which:
+         with patch("os.path.isfile", return_value=False) as m_file:
+-            with patch("os.path.exists", return_value=False) as m_exists:
+-                yield mocks(m_which, m_file, m_exists)
++            yield mocks(m_which, m_file)
+ 
+ 
+ class TestSearchAndSelect:
+@@ -115,6 +113,10 @@ NETPLAN_AVAILABLE_CALLS = [
+     (("netplan",), {"search": ["/usr/sbin", "/sbin"], "target": None}),
+ ]
+ 
++NETWORK_MANAGER_AVAILABLE_CALLS = [
++    (("nmcli",), {"target": None}),
++]
++
+ NETWORKD_AVAILABLE_CALLS = [
+     (("ip",), {"search": ["/usr/sbin", "/bin"], "target": None}),
+     (("systemctl",), {"search": ["/usr/sbin", "/bin"], "target": None}),
+@@ -126,6 +128,7 @@ NETWORKD_AVAILABLE_CALLS = [
+     [
+         (IfUpDownActivator, IF_UP_DOWN_AVAILABLE_CALLS),
+         (NetplanActivator, NETPLAN_AVAILABLE_CALLS),
++        (NetworkManagerActivator, NETWORK_MANAGER_AVAILABLE_CALLS),
+         (NetworkdActivator, NETWORKD_AVAILABLE_CALLS),
+     ],
+ )
+@@ -141,72 +144,8 @@ IF_UP_DOWN_BRING_UP_CALL_LIST = [
+ ]
+ 
+ NETWORK_MANAGER_BRING_UP_CALL_LIST = [
+-    (
+-        (
+-            [
+-                "nmcli",
+-                "connection",
+-                "load",
+-                "".join(
+-                    [
+-                        "/etc/NetworkManager/system-connections",
+-                        "/cloud-init-eth0.nmconnection",
+-                    ]
+-                ),
+-            ],
+-        ),
+-        {},
+-    ),
+-    (
+-        (
+-            [
+-                "nmcli",
+-                "connection",
+-                "up",
+-                "filename",
+-                "".join(
+-                    [
+-                        "/etc/NetworkManager/system-connections",
+-                        "/cloud-init-eth0.nmconnection",
+-                    ]
+-                ),
+-            ],
+-        ),
+-        {},
+-    ),
+-    (
+-        (
+-            [
+-                "nmcli",
+-                "connection",
+-                "load",
+-                "".join(
+-                    [
+-                        "/etc/NetworkManager/system-connections",
+-                        "/cloud-init-eth1.nmconnection",
+-                    ]
+-                ),
+-            ],
+-        ),
+-        {},
+-    ),
+-    (
+-        (
+-            [
+-                "nmcli",
+-                "connection",
+-                "up",
+-                "filename",
+-                "".join(
+-                    [
+-                        "/etc/NetworkManager/system-connections",
+-                        "/cloud-init-eth1.nmconnection",
+-                    ]
+-                ),
+-            ],
+-        ),
+-        {},
+-    ),
++    ((["nmcli", "connection", "up", "ifname", "eth0"],), {}),
++    ((["nmcli", "connection", "up", "ifname", "eth1"],), {}),
+ ]
+ 
+ NETWORKD_BRING_UP_CALL_LIST = [
+@@ -230,11 +169,9 @@ class TestActivatorsBringUp:
+     def test_bring_up_interface(
+         self, m_subp, activator, expected_call_list, available_mocks
+     ):
+-        index = 0
+         activator.bring_up_interface("eth0")
+-        for call in m_subp.call_args_list:
+-            assert call == expected_call_list[index]
+-            index += 1
++        assert len(m_subp.call_args_list) == 1
++        assert m_subp.call_args_list[0] == expected_call_list[0]
+ 
+     @patch("cloudinit.subp.subp", return_value=("", ""))
+     def test_bring_up_interfaces(
+@@ -271,8 +208,8 @@ IF_UP_DOWN_BRING_DOWN_CALL_LIST = [
+ ]
+ 
+ NETWORK_MANAGER_BRING_DOWN_CALL_LIST = [
+-    ((["nmcli", "device", "disconnect", "eth0"],), {}),
+-    ((["nmcli", "device", "disconnect", "eth1"],), {}),
++    ((["nmcli", "connection", "down", "eth0"],), {}),
++    ((["nmcli", "connection", "down", "eth1"],), {}),
+ ]
+ 
+ NETWORKD_BRING_DOWN_CALL_LIST = [
+-- 
+2.31.1
+

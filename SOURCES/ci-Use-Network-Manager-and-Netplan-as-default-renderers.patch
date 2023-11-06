@@ -1,0 +1,109 @@
+From 840d6f7ca86fe9822c613f0f2c21f136271ce3b6 Mon Sep 17 00:00:00 2001
+From: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date: Thu, 19 May 2022 15:44:03 +0200
+Subject: [PATCH 2/5] Use Network-Manager and Netplan as default renderers for
+ RHEL and Fedora (#1465)
+
+RH-Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-MergeRequest: 24: Add native NetworkManager support (#1224)
+RH-Commit: [2/3] e33081b15a8558967bb480ed659116e7e0872840 (eesposit/cloud-init-centos-)
+RH-Bugzilla: 2056964
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Acked-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+
+commit 7703aa98b89c8daba207c28a0422268ead10019a
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Thu May 19 15:05:01 2022 +0200
+
+    Use Network-Manager and Netplan as default renderers for RHEL and Fedora (#1465)
+
+    This is adapted from Neal Gompa's PR:
+    https://github.com/canonical/cloud-init/pull/1435
+
+    The only difference is that we are not modifying renderers.py (thus
+    modifying the priority of all distros), but just tweaking cloud.cfg to
+    apply this change to Fedora and RHEL. Other distros can optionally
+    add themselves afterwards.
+
+            net: Prefer Netplan and NetworkManager renderers by default
+
+            NetworkManager is used by default on a variety of Linux distributions,
+            and exists as a cross-distribution network management service.
+
+            Additionally, add information about the NetworkManager renderer to
+            the cloud-init documentation.
+
+            Because Netplan can be explicitly used to manage NetworkManager,
+            it needs to be preferred before NetworkManager.
+
+            This change is a follow-up to #1224, which added the native
+            NetworkManager renderer.
+            This patch has been deployed on Fedora's cloud-init package throughout
+            the development of Fedora Linux 36 to verify that it works.
+
+            This should also make it tremendously easier for Linux distributions
+            to use cloud-init because now a standard configuration is supported
+            by default.
+
+            Signed-off-by: Neal Gompa <ngompa13@gmail.com>
+
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+---
+ config/cloud.cfg.tmpl             |  3 +++
+ doc/rtd/topics/network-config.rst | 12 +++++++++++-
+ 2 files changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/config/cloud.cfg.tmpl b/config/cloud.cfg.tmpl
+index fb4b456c..86beee3c 100644
+--- a/config/cloud.cfg.tmpl
++++ b/config/cloud.cfg.tmpl
+@@ -330,4 +330,7 @@ system_info:
+ {% elif variant in ["dragonfly"] %}
+    network:
+       renderers: ['freebsd']
++{% elif variant in ["rhel", "fedora"] %}
++   network:
++      renderers: ['netplan', 'network-manager', 'networkd', 'sysconfig', 'eni']
+ {% endif %}
+diff --git a/doc/rtd/topics/network-config.rst b/doc/rtd/topics/network-config.rst
+index c461a3fe..f503caab 100644
+--- a/doc/rtd/topics/network-config.rst
++++ b/doc/rtd/topics/network-config.rst
+@@ -188,6 +188,15 @@ generated configuration into an internal network configuration state. From
+ this state `Cloud-init`_ delegates rendering of the configuration to Distro
+ supported formats.  The following ``renderers`` are supported in cloud-init:
+ 
++- **NetworkManager**
++
++`NetworkManager <https://networkmanager.dev>`_ is the standard Linux network
++configuration tool suite. It supports a wide range of networking setups.
++Configuration is typically stored in ``/etc/NetworkManager``.
++
++It is the default for a number of Linux distributions, notably Fedora;
++CentOS/RHEL; and derivatives.
++
+ - **ENI**
+ 
+ /etc/network/interfaces or ``ENI`` is supported by the ``ifupdown`` package
+@@ -215,6 +224,7 @@ is as follows:
+ - ENI
+ - Sysconfig
+ - Netplan
++- NetworkManager
+ 
+ When applying the policy, `Cloud-init`_ checks if the current instance has the
+ correct binaries and paths to support the renderer.  The first renderer that
+@@ -223,7 +233,7 @@ supplying an updated configuration in cloud-config. ::
+ 
+   system_info:
+     network:
+-      renderers: ['netplan', 'eni', 'sysconfig', 'freebsd', 'netbsd', 'openbsd']
++      renderers: ['netplan', 'network-manager', 'eni', 'sysconfig', 'freebsd', 'netbsd', 'openbsd']
+ 
+ 
+ Network Configuration Tools
+-- 
+2.31.1
+
