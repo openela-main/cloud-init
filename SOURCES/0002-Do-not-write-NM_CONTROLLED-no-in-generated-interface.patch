@@ -1,0 +1,261 @@
+From e0dc628ac553072891fa6607dc91b652efd99be2 Mon Sep 17 00:00:00 2001
+From: Eduardo Otubo <otubo@redhat.com>
+Date: Fri, 7 May 2021 13:36:06 +0200
+Subject: Do not write NM_CONTROLLED=no in generated interface config  files
+
+Conflicts 20.3:
+ - Not appplying patch on cloudinit/net/sysconfig.py since it now has a
+mechanism to identify if cloud-init is running on RHEL, having the
+correct settings for NM_CONTROLLED.
+
+X-downstream-only: true
+Signed-off-by: Eduardo Otubo <otubo@redhat.com>
+Signed-off-by: Ryan McCabe <rmccabe@redhat.com>
+---
+ cloudinit/net/sysconfig.py  |  1 -
+ tests/unittests/test_net.py | 28 ----------------------------
+ 2 files changed, 29 deletions(-)
+
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index ba85c4f6..e06ddee7 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -336,7 +336,6 @@ class Renderer(renderer.Renderer):
+         "rhel": {
+             "ONBOOT": True,
+             "USERCTL": False,
+-            "NM_CONTROLLED": False,
+             "BOOTPROTO": "none",
+         },
+         "suse": {"BOOTPROTO": "static", "STARTMODE": "auto"},
+diff --git a/tests/unittests/test_net.py b/tests/unittests/test_net.py
+index 47e4ba00..591241b3 100644
+--- a/tests/unittests/test_net.py
++++ b/tests/unittests/test_net.py
+@@ -579,7 +579,6 @@ GATEWAY=172.19.3.254
+ HWADDR=fa:16:3e:ed:9a:59
+ IPADDR=172.19.1.34
+ NETMASK=255.255.252.0
+-NM_CONTROLLED=no
+ ONBOOT=yes
+ TYPE=Ethernet
+ USERCTL=no
+@@ -712,7 +711,6 @@ IPADDR=172.19.1.34
+ IPADDR1=10.0.0.10
+ NETMASK=255.255.252.0
+ NETMASK1=255.255.255.0
+-NM_CONTROLLED=no
+ ONBOOT=yes
+ TYPE=Ethernet
+ USERCTL=no
+@@ -874,7 +872,6 @@ IPV6_AUTOCONF=no
+ IPV6_DEFAULTGW=2001:DB8::1
+ IPV6_FORCE_ACCEPT_RA=no
+ NETMASK=255.255.252.0
+-NM_CONTROLLED=no
+ ONBOOT=yes
+ TYPE=Ethernet
+ USERCTL=no
+@@ -1053,7 +1050,6 @@ NETWORK_CONFIGS = {
+                 BOOTPROTO=none
+                 DEVICE=eth1
+                 HWADDR=cf:d6:af:48:e8:80
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no"""
+@@ -1072,7 +1068,6 @@ NETWORK_CONFIGS = {
+                 IPADDR=192.168.21.3
+                 NETMASK=255.255.255.0
+                 METRIC=10000
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no"""
+@@ -1244,7 +1239,6 @@ NETWORK_CONFIGS = {
+                 IPV6_AUTOCONF=no
+                 IPV6_FORCE_ACCEPT_RA=no
+                 NETMASK=255.255.255.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -2093,7 +2087,6 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 DHCPV6C=yes
+                 IPV6INIT=yes
+                 MACADDR=aa:bb:cc:dd:ee:ff
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Bond
+                 USERCTL=no"""
+@@ -2103,7 +2096,6 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 BOOTPROTO=dhcp
+                 DEVICE=bond0.200
+                 DHCLIENT_SET_DEFAULT_ROUTE=no
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 PHYSDEV=bond0
+                 USERCTL=no
+@@ -2123,7 +2115,6 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 IPV6_DEFAULTGW=2001:4800:78ff:1b::1
+                 MACADDR=bb:bb:bb:bb:bb:aa
+                 NETMASK=255.255.255.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 PRIO=22
+                 STP=no
+@@ -2135,7 +2126,6 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 BOOTPROTO=none
+                 DEVICE=eth0
+                 HWADDR=c0:d6:9f:2c:e8:80
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no"""
+@@ -2154,7 +2144,6 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 MTU=1500
+                 NETMASK=255.255.255.0
+                 NETMASK1=255.255.255.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 PHYSDEV=eth0
+                 USERCTL=no
+@@ -2166,7 +2155,6 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 DEVICE=eth1
+                 HWADDR=aa:d6:9f:2c:e8:80
+                 MASTER=bond0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 SLAVE=yes
+                 TYPE=Ethernet
+@@ -2178,7 +2166,6 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 DEVICE=eth2
+                 HWADDR=c0:bb:9f:2c:e8:80
+                 MASTER=bond0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 SLAVE=yes
+                 TYPE=Ethernet
+@@ -2190,7 +2177,6 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 BRIDGE=br0
+                 DEVICE=eth3
+                 HWADDR=66:bb:9f:2c:e8:80
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no"""
+@@ -2201,7 +2187,6 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 BRIDGE=br0
+                 DEVICE=eth4
+                 HWADDR=98:bb:9f:2c:e8:80
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no"""
+@@ -2212,7 +2197,6 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 DEVICE=eth5
+                 DHCLIENT_SET_DEFAULT_ROUTE=no
+                 HWADDR=98:bb:9f:2c:e8:8a
+-                NM_CONTROLLED=no
+                 ONBOOT=no
+                 TYPE=Ethernet
+                 USERCTL=no"""
+@@ -2689,7 +2673,6 @@ iface bond0 inet6 static
+         MTU=9000
+         NETMASK=255.255.255.0
+         NETMASK1=255.255.255.0
+-        NM_CONTROLLED=no
+         ONBOOT=yes
+         TYPE=Bond
+         USERCTL=no
+@@ -2701,7 +2684,6 @@ iface bond0 inet6 static
+         DEVICE=bond0s0
+         HWADDR=aa:bb:cc:dd:e8:00
+         MASTER=bond0
+-        NM_CONTROLLED=no
+         ONBOOT=yes
+         SLAVE=yes
+         TYPE=Ethernet
+@@ -2729,7 +2711,6 @@ iface bond0 inet6 static
+         DEVICE=bond0s1
+         HWADDR=aa:bb:cc:dd:e8:01
+         MASTER=bond0
+-        NM_CONTROLLED=no
+         ONBOOT=yes
+         SLAVE=yes
+         TYPE=Ethernet
+@@ -2794,7 +2775,6 @@ iface bond0 inet6 static
+                 BOOTPROTO=none
+                 DEVICE=en0
+                 HWADDR=aa:bb:cc:dd:e8:00
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no"""
+@@ -2815,7 +2795,6 @@ iface bond0 inet6 static
+                 MTU=2222
+                 NETMASK=255.255.255.0
+                 NETMASK1=255.255.255.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 PHYSDEV=en0
+                 USERCTL=no
+@@ -2890,7 +2869,6 @@ iface bond0 inet6 static
+                 DEVICE=br0
+                 IPADDR=192.168.2.2
+                 NETMASK=255.255.255.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 PRIO=22
+                 STP=no
+@@ -3032,7 +3010,6 @@ iface bond0 inet6 static
+                 HWADDR=52:54:00:12:34:00
+                 IPADDR=192.168.1.2
+                 NETMASK=255.255.255.0
+-                NM_CONTROLLED=no
+                 ONBOOT=no
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -3044,7 +3021,6 @@ iface bond0 inet6 static
+                 DEVICE=eth1
+                 HWADDR=52:54:00:12:34:aa
+                 MTU=1480
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -3055,7 +3031,6 @@ iface bond0 inet6 static
+                 BOOTPROTO=none
+                 DEVICE=eth2
+                 HWADDR=52:54:00:12:34:ff
+-                NM_CONTROLLED=no
+                 ONBOOT=no
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -3628,7 +3603,6 @@ class TestRhelSysConfigRendering(CiTestCase):
+ BOOTPROTO=dhcp
+ DEVICE=eth1000
+ HWADDR=07-1c-c6-75-a4-be
+-NM_CONTROLLED=no
+ ONBOOT=yes
+ TYPE=Ethernet
+ USERCTL=no
+@@ -3840,7 +3814,6 @@ GATEWAY=10.0.2.2
+ HWADDR=52:54:00:12:34:00
+ IPADDR=10.0.2.15
+ NETMASK=255.255.255.0
+-NM_CONTROLLED=no
+ ONBOOT=yes
+ TYPE=Ethernet
+ USERCTL=no
+@@ -3910,7 +3883,6 @@ USERCTL=no
+ #
+ BOOTPROTO=dhcp
+ DEVICE=eth0
+-NM_CONTROLLED=no
+ ONBOOT=yes
+ TYPE=Ethernet
+ USERCTL=no
+-- 
+2.31.1
+
