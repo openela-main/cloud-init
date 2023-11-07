@@ -1,0 +1,206 @@
+From 6bf6ceab79df97eb1c90b4df61f654bc0b2f598c Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Tue, 2 May 2023 20:35:45 +0530
+Subject: [PATCH] Do not generate dsa and ed25519 key types when crypto FIPS
+ mode is enabled (#2142)
+
+DSA and ED25519 key types are not supported when FIPS is enabled in crypto.
+Check if FIPS has been enabled on the system and if so, do not generate those
+key types. Presently the check is only available on Linux systems.
+
+LP: 2017761
+RHBZ: 2187164
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit c53f04aeb2acf9526a2ebf3d3320f149ac46caa6)
+---
+ cloudinit/config/cc_ssh.py            | 21 +++++++++++++++-
+ cloudinit/util.py                     | 12 +++++++++
+ tests/unittests/config/test_cc_ssh.py | 36 +++++++++++++++++++++------
+ tests/unittests/test_util.py          | 25 +++++++++++++++++++
+ 4 files changed, 85 insertions(+), 9 deletions(-)
+
+diff --git a/cloudinit/config/cc_ssh.py b/cloudinit/config/cc_ssh.py
+index 1ec889f3..5578654a 100644
+--- a/cloudinit/config/cc_ssh.py
++++ b/cloudinit/config/cc_ssh.py
+@@ -172,6 +172,8 @@ meta: MetaSchema = {
+ __doc__ = get_meta_doc(meta)
+ 
+ GENERATE_KEY_NAMES = ["rsa", "dsa", "ecdsa", "ed25519"]
++FIPS_UNSUPPORTED_KEY_NAMES = ["dsa", "ed25519"]
++
+ pattern_unsupported_config_keys = re.compile(
+     "^(ecdsa-sk|ed25519-sk)_(private|public|certificate)$"
+ )
+@@ -259,9 +261,26 @@ def handle(
+         genkeys = util.get_cfg_option_list(
+             cfg, "ssh_genkeytypes", GENERATE_KEY_NAMES
+         )
++        # remove keys that are not supported in fips mode if its enabled
++        key_names = (
++            genkeys
++            if not util.fips_enabled()
++            else [
++                names
++                for names in genkeys
++                if names not in FIPS_UNSUPPORTED_KEY_NAMES
++            ]
++        )
++        skipped_keys = set(genkeys).difference(key_names)
++        if skipped_keys:
++            log.debug(
++                "skipping keys that are not supported in fips mode: %s",
++                ",".join(skipped_keys),
++            )
++
+         lang_c = os.environ.copy()
+         lang_c["LANG"] = "C"
+-        for keytype in genkeys:
++        for keytype in key_names:
+             keyfile = KEY_FILE_TPL % (keytype)
+             if os.path.exists(keyfile):
+                 continue
+diff --git a/cloudinit/util.py b/cloudinit/util.py
+index 8ba3e2b6..4a8e3d3b 100644
+--- a/cloudinit/util.py
++++ b/cloudinit/util.py
+@@ -1577,6 +1577,18 @@ def get_cmdline():
+     return _get_cmdline()
+ 
+ 
++def fips_enabled() -> bool:
++    fips_proc = "/proc/sys/crypto/fips_enabled"
++    try:
++        contents = load_file(fips_proc).strip()
++        return contents == "1"
++    except (IOError, OSError):
++        # for BSD systems and Linux systems where the proc entry is not
++        # available, we assume FIPS is disabled to retain the old behavior
++        # for now.
++        return False
++
++
+ def pipe_in_out(in_fh, out_fh, chunk_size=1024, chunk_cb=None):
+     bytes_piped = 0
+     while True:
+diff --git a/tests/unittests/config/test_cc_ssh.py b/tests/unittests/config/test_cc_ssh.py
+index 66368d0f..72941a95 100644
+--- a/tests/unittests/config/test_cc_ssh.py
++++ b/tests/unittests/config/test_cc_ssh.py
+@@ -101,11 +101,16 @@ class TestHandleSsh:
+             expected_calls = [mock.call(set(keys), user)] + expected_calls
+         assert expected_calls == m_setup_keys.call_args_list
+ 
++    @pytest.mark.parametrize("fips_enabled", (True, False))
+     @mock.patch(MODPATH + "glob.glob")
+     @mock.patch(MODPATH + "ug_util.normalize_users_groups")
+     @mock.patch(MODPATH + "os.path.exists")
+-    def test_handle_no_cfg(self, m_path_exists, m_nug, m_glob, m_setup_keys):
++    @mock.patch(MODPATH + "util.fips_enabled")
++    def test_handle_no_cfg(
++        self, m_fips, m_path_exists, m_nug, m_glob, m_setup_keys, fips_enabled
++    ):
+         """Test handle with no config ignores generating existing keyfiles."""
++        m_fips.return_value = fips_enabled
+         cfg = {}
+         keys = ["key1"]
+         m_glob.return_value = []  # Return no matching keys to prevent removal
+@@ -118,12 +123,22 @@ class TestHandleSsh:
+         options = ssh_util.DISABLE_USER_OPTS.replace("$USER", "NONE")
+         options = options.replace("$DISABLE_USER", "root")
+         m_glob.assert_called_once_with("/etc/ssh/ssh_host_*key*")
+-        assert [
+-            mock.call("/etc/ssh/ssh_host_rsa_key"),
+-            mock.call("/etc/ssh/ssh_host_dsa_key"),
+-            mock.call("/etc/ssh/ssh_host_ecdsa_key"),
+-            mock.call("/etc/ssh/ssh_host_ed25519_key"),
+-        ] in m_path_exists.call_args_list
++        m_fips.assert_called_once()
++
++        if not m_fips():
++            expected_calls = [
++                mock.call("/etc/ssh/ssh_host_rsa_key"),
++                mock.call("/etc/ssh/ssh_host_dsa_key"),
++                mock.call("/etc/ssh/ssh_host_ecdsa_key"),
++                mock.call("/etc/ssh/ssh_host_ed25519_key"),
++            ]
++        else:
++            # Enabled fips doesn't generate dsa or ed25519
++            expected_calls = [
++                mock.call("/etc/ssh/ssh_host_rsa_key"),
++                mock.call("/etc/ssh/ssh_host_ecdsa_key"),
++            ]
++        assert expected_calls in m_path_exists.call_args_list
+         assert [
+             mock.call(set(keys), "root", options=options)
+         ] == m_setup_keys.call_args_list
+@@ -131,8 +146,9 @@ class TestHandleSsh:
+     @mock.patch(MODPATH + "glob.glob")
+     @mock.patch(MODPATH + "ug_util.normalize_users_groups")
+     @mock.patch(MODPATH + "os.path.exists")
++    @mock.patch(MODPATH + "util.fips_enabled", return_value=False)
+     def test_dont_allow_public_ssh_keys(
+-        self, m_path_exists, m_nug, m_glob, m_setup_keys
++        self, m_fips, m_path_exists, m_nug, m_glob, m_setup_keys
+     ):
+         """Test allow_public_ssh_keys=False ignores ssh public keys from
+         platform.
+@@ -176,8 +192,10 @@ class TestHandleSsh:
+     @mock.patch(MODPATH + "glob.glob")
+     @mock.patch(MODPATH + "ug_util.normalize_users_groups")
+     @mock.patch(MODPATH + "os.path.exists")
++    @mock.patch(MODPATH + "util.fips_enabled", return_value=False)
+     def test_handle_default_root(
+         self,
++        m_fips,
+         m_path_exists,
+         m_nug,
+         m_glob,
+@@ -241,8 +259,10 @@ class TestHandleSsh:
+     @mock.patch(MODPATH + "glob.glob")
+     @mock.patch(MODPATH + "ug_util.normalize_users_groups")
+     @mock.patch(MODPATH + "os.path.exists")
++    @mock.patch(MODPATH + "util.fips_enabled", return_value=False)
+     def test_handle_publish_hostkeys(
+         self,
++        m_fips,
+         m_path_exists,
+         m_nug,
+         m_glob,
+diff --git a/tests/unittests/test_util.py b/tests/unittests/test_util.py
+index 07142a86..17182d06 100644
+--- a/tests/unittests/test_util.py
++++ b/tests/unittests/test_util.py
+@@ -1945,6 +1945,31 @@ class TestGetCmdline(helpers.TestCase):
+         self.assertEqual("abcd 123", ret)
+ 
+ 
++class TestFipsEnabled:
++    @pytest.mark.parametrize(
++        "fips_enabled_content,expected",
++        (
++            pytest.param(None, False, id="false_when_no_fips_enabled_file"),
++            pytest.param("0\n", False, id="false_when_fips_disabled"),
++            pytest.param("1\n", True, id="true_when_fips_enabled"),
++            pytest.param("1", True, id="true_when_fips_enabled_no_newline"),
++        ),
++    )
++    @mock.patch(M_PATH + "load_file")
++    def test_fips_enabled_based_on_proc_crypto(
++        self, load_file, fips_enabled_content, expected, tmpdir
++    ):
++        def fake_load_file(path):
++            assert path == "/proc/sys/crypto/fips_enabled"
++            if fips_enabled_content is None:
++                raise IOError("No file exists Bob")
++            return fips_enabled_content
++
++        load_file.side_effect = fake_load_file
++
++        assert expected is util.fips_enabled()
++
++
+ class TestLoadYaml(helpers.CiTestCase):
+     mydefault = "7b03a8ebace993d806255121073fed52"
+     with_logs = True

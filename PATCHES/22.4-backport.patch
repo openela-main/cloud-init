@@ -1,0 +1,13 @@
+diff --git a/config/cloud.cfg.tmpl b/config/cloud.cfg.tmpl
+index fdd5a357..e3641a4f 100644
+--- a/config/cloud.cfg.tmpl
++++ b/config/cloud.cfg.tmpl
+@@ -260,7 +260,7 @@ system_info:
+      name: ec2-user
+      lock_passwd: True
+      gecos: EC2 Default User
+-{% elif variant in ["rhel", "centos"] %}
++{% elif variant in ["rhel", "centos", "openela"] %}
+      name: cloud-user
+      lock_passwd: true
+      gecos: Cloud User

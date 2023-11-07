@@ -1,0 +1,43 @@
+From 603ad38bca7735eeb72217b4f169a4b4c42ac092 Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Tue, 16 May 2023 16:08:21 +0530
+Subject: [PATCH] net/sysconfig: cosmetic - fix tox formatting
+
+recommended cloud-init code formatting was not enforced with an older downstream
+only change. This change fixes the formatting issue so that tox -e do_format
+does not complain. Changes are cosmetic.
+
+X-downstream-only: true
+
+fixes: b3b96bff187e9d ("Do not write NM_CONTROLLED=no in generated interface config files")
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/net/sysconfig.py | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index 1fe82412..fcce3e99 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -1025,15 +1025,15 @@ class Renderer(renderer.Renderer):
+         if sysconfig_path.endswith("network"):
+             util.ensure_dir(os.path.dirname(sysconfig_path))
+             netcfg = []
+-            for line in util.load_file(sysconfig_path, quiet=True).split('\n'):
+-                if 'cloud-init' in line:
++            for line in util.load_file(sysconfig_path, quiet=True).split("\n"):
++                if "cloud-init" in line:
+                     break
+-                if not line.startswith(('NETWORKING=',
+-                                        'IPV6_AUTOCONF=',
+-                                        'NETWORKING_IPV6=')):
++                if not line.startswith(
++                    ("NETWORKING=", "IPV6_AUTOCONF=", "NETWORKING_IPV6=")
++                ):
+                     netcfg.append(line)
+             # Now generate the cloud-init portion of sysconfig/network
+-            netcfg.extend([_make_header(), 'NETWORKING=yes'])
++            netcfg.extend([_make_header(), "NETWORKING=yes"])
+             if network_state.use_ipv6:
+                 netcfg.append("NETWORKING_IPV6=yes")
+                 netcfg.append("IPV6_AUTOCONF=no")

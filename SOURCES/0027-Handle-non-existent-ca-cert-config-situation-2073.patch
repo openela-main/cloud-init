@@ -1,0 +1,85 @@
+From add770c442088c0915bdefad2a7438f9a38596c5 Mon Sep 17 00:00:00 2001
+From: Shreenidhi Shedi <53473811+sshedi@users.noreply.github.com>
+Date: Fri, 17 Mar 2023 03:01:22 +0530
+Subject: [PATCH] Handle non existent ca-cert-config situation (#2073)
+
+Currently if a cert file doesn't exist, cc_ca_certs module crashes
+This fix makes it possible to handle it gracefully.
+
+Also, out_lines variable may not be available if os.stat returns 0.
+This issue is also taken care of.
+
+Added tests for the same.
+
+(cherry picked from commit 3634678465e7b8f8608bcb9a1f5773ae7837cbe9)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/config/cc_ca_certs.py            | 19 +++++++++++++------
+ tests/unittests/config/test_cc_ca_certs.py | 12 ++++++++++++
+ 2 files changed, 25 insertions(+), 6 deletions(-)
+
+diff --git a/cloudinit/config/cc_ca_certs.py b/cloudinit/config/cc_ca_certs.py
+index 51b8577c..4dc08681 100644
+--- a/cloudinit/config/cc_ca_certs.py
++++ b/cloudinit/config/cc_ca_certs.py
+@@ -177,14 +177,20 @@ def disable_system_ca_certs(distro_cfg):
+ 
+     @param distro_cfg: A hash providing _distro_ca_certs_configs function.
+     """
+-    if distro_cfg["ca_cert_config"] is None:
++
++    ca_cert_cfg_fn = distro_cfg["ca_cert_config"]
++
++    if not ca_cert_cfg_fn or not os.path.exists(ca_cert_cfg_fn):
+         return
++
+     header_comment = (
+         "# Modified by cloud-init to deselect certs due to user-data"
+     )
++
+     added_header = False
+-    if os.stat(distro_cfg["ca_cert_config"]).st_size != 0:
+-        orig = util.load_file(distro_cfg["ca_cert_config"])
++
++    if os.stat(ca_cert_cfg_fn).st_size:
++        orig = util.load_file(ca_cert_cfg_fn)
+         out_lines = []
+         for line in orig.splitlines():
+             if line == header_comment:
+@@ -197,9 +203,10 @@ def disable_system_ca_certs(distro_cfg):
+                     out_lines.append(header_comment)
+                     added_header = True
+                 out_lines.append("!" + line)
+-    util.write_file(
+-        distro_cfg["ca_cert_config"], "\n".join(out_lines) + "\n", omode="wb"
+-    )
++
++        util.write_file(
++            ca_cert_cfg_fn, "\n".join(out_lines) + "\n", omode="wb"
++        )
+ 
+ 
+ def remove_default_ca_certs(distro_cfg):
+diff --git a/tests/unittests/config/test_cc_ca_certs.py b/tests/unittests/config/test_cc_ca_certs.py
+index 6db17485..5f1894e7 100644
+--- a/tests/unittests/config/test_cc_ca_certs.py
++++ b/tests/unittests/config/test_cc_ca_certs.py
+@@ -365,6 +365,18 @@ class TestRemoveDefaultCaCerts(TestCase):
+                     else:
+                         assert mock_subp.call_count == 0
+ 
++    def test_non_existent_cert_cfg(self):
++        self.m_stat.return_value.st_size = 0
++
++        for distro_name in cc_ca_certs.distros:
++            conf = cc_ca_certs._distro_ca_certs_configs(distro_name)
++            with ExitStack() as mocks:
++                mocks.enter_context(
++                    mock.patch.object(util, "delete_dir_contents")
++                )
++                mocks.enter_context(mock.patch.object(subp, "subp"))
++                cc_ca_certs.disable_default_ca_certs(distro_name, conf)
++
+ 
+ class TestCACertsSchema:
+     """Directly test schema rather than through handle."""

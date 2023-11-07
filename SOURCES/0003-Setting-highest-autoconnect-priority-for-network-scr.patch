@@ -1,0 +1,42 @@
+From c589da20eb92231ef08e10c9724e3e6c663e6ce2 Mon Sep 17 00:00:00 2001
+From: Eduardo Otubo <otubo@redhat.com>
+Date: Thu, 17 Feb 2022 15:32:35 +0100
+Subject: [PATCH] Setting highest autoconnect priority for network-scripts
+
+RH-Author: Eduardo Otubo <otubo@redhat.com>
+RH-MergeRequest: 22: Setting highest autoconnect priority for network-scripts
+RH-Commit: [1/1] 34f1d62f8934a983a124df95b861a1e448681d3b (otubo/cloud-init-src)
+RH-Bugzilla: 2036060
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+
+Set the highest autoconnect priority for network-scripts which is
+loaded by NetworkManager ifcfg-rh plugin.  Note that keyfile is the only
+and default existing plugin on RHEL9, by setting the highest autoconnect
+priority for network-scripts, NetworkManager will activate
+network-scripts but keyfile.  Network-scripts path:
+
+Since this is a blocking issue, we decided to have this one-liner
+downstream-only patch so we can move forward and have a better
+NetworkManager support later on the release.
+
+rhbz: 2036060
+x-downstream-only: yes
+
+Signed-off-by: Eduardo Otubo <otubo@redhat.com>
+---
+ cloudinit/net/sysconfig.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index a7dbe55b..4262cd48 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -317,6 +317,7 @@ class Renderer(renderer.Renderer):
+             "ONBOOT": True,
+             "USERCTL": False,
+             "BOOTPROTO": "none",
++            "AUTOCONNECT_PRIORITY": 999
+         },
+         "suse": {"BOOTPROTO": "static", "STARTMODE": "auto"},
+     }

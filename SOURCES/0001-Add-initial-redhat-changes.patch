@@ -1,0 +1,61 @@
+From c4d66915520554adedff9be7396f877cd1a5525c Mon Sep 17 00:00:00 2001
+From: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date: Mon, 6 Mar 2023 16:37:20 +0100
+Subject: [PATCH] Add initial redhat changes
+
+Adding minimal set of changes necessary for successful build of the package
+on RHEL/CentOS 9 Stream koji.
+
+Merged patches (23.1.1):
+724a80ac  Add TargetRelease
+967a4405b rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg
+^ Merged since it removes hunks added in this commit itself
+
+Discarded because not needed anymore (packit):
+e3fd7ce12 Configure Packit to ignore the .gitignore file
+e18654e9  Fixes for packit support
+
+Discarded because file does not exist anymore and templates are aligned with upstream:
+3576b12460bf18557857ee25df6bf530dab66612 Adding _netdev to the default mount configuration
+8092b57ab245856ff1fdde1469960608a489c95e   Remove rhel specific files
+
+Added the following entry to %files to keep track of the new README file in config/clean.d/README
+%doc               %{_sysconfdir}/cloud/clean.d/README
+
+ignored
+c75e509b0 Revert "Revert "Setting highest autoconnect priority for network-scripts""
+0eba5c619 Revert "Setting highest autoconnect priority for network-scripts"
+
+ignored
+ba19343c0d9807d0c68a2d8e4ab274f3ca884247 Add Gitlab CI
+fe09305a5479a4814d6c46df07a906bafa29d637 Delete .gitlab-ci.yml
+
+Conflicts:
+missing rhel/ static files and "" instead of '' in setup.py
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+---
+ cloudinit/settings.py | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/cloudinit/settings.py b/cloudinit/settings.py
+index 8684d003..edbb217d 100644
+--- a/cloudinit/settings.py
++++ b/cloudinit/settings.py
+@@ -53,13 +53,14 @@ CFG_BUILTIN = {
+     ],
+     "def_log_file": "/var/log/cloud-init.log",
+     "log_cfgs": [],
+-    "syslog_fix_perms": ["syslog:adm", "root:adm", "root:wheel", "root:root"],
++    "mount_default_fields": [None, None, "auto", "defaults,nofail", "0", "2"],
++    "syslog_fix_perms": [],
+     "system_info": {
+         "paths": {
+             "cloud_dir": "/var/lib/cloud",
+             "templates_dir": "/etc/cloud/templates/",
+         },
+-        "distro": "ubuntu",
++        "distro": "rhel",
+         "network": {"renderers": None},
+     },
+     "vendor_data": {"enabled": True, "prefix": []},

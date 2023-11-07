@@ -1,0 +1,33 @@
+From 0a2c6b6118ffaf29694b3a51aff3a33298419c50 Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Mon, 15 May 2023 19:15:12 +0530
+Subject: [PATCH] net/sysconfig: do not use the highest autoconnect priority
+
+Using the highest priority is a very big hammer that we may not want to use. We
+may want users to override the cloud init generated ifcfg files for custom
+configuration of interfaces. If cloud init uses the highest priority, nothing
+can beat it. Hence lower the priority to 120 allowing values from 121 to 999
+to be used by users if they want to use a custom interface nm keyfile.
+
+X-downstream-only: true
+
+Suggested-by: thaller@redhat.com
+fixes: c589da20eb92231 ("Setting highest autoconnect priority for network-scripts")
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/net/sysconfig.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index b8786fb7..1fe82412 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -317,7 +317,7 @@ class Renderer(renderer.Renderer):
+             "ONBOOT": True,
+             "USERCTL": False,
+             "BOOTPROTO": "none",
+-            "AUTOCONNECT_PRIORITY": 999
++            "AUTOCONNECT_PRIORITY": 120,
+         },
+         "suse": {"BOOTPROTO": "static", "STARTMODE": "auto"},
+     }
