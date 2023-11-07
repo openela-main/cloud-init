@@ -1,94 +1,96 @@
-Name:           cloud-init
-Version:        23.1.1
-Release:        11%{?dist}
-Summary:        Cloud instance init scripts
-License:        ASL 2.0 or GPLv3
-URL:            http://launchpad.net/cloud-init
-Source0:        https://github.com/canonical/cloud-init/archive/refs/tags/%{version}.tar.gz
-Source1:        cloud-init-tmpfiles.conf
+Name:                 cloud-init
+Version:              23.1.1
+Release:              11%{?dist}.0.2
+Summary:              Cloud instance init scripts
+License:              ASL 2.0 or GPLv3
+URL:                  http://launchpad.net/cloud-init
+Source0:              https://github.com/canonical/cloud-init/archive/refs/tags/%{version}.tar.gz
+Source1:              cloud-init-tmpfiles.conf
 
 # Source-git patches
-Patch1: 0001-Add-initial-redhat-changes.patch
-Patch2: 0002-Do-not-write-NM_CONTROLLED-no-in-generated-interface.patch
-Patch3: 0003-Setting-highest-autoconnect-priority-for-network-scr.patch
-Patch4: 0004-limit-permissions-on-def_log_file.patch
-Patch5: 0005-Manual-revert-Use-Network-Manager-and-Netplan-as-def.patch
-Patch6: 0006-Revert-Add-native-NetworkManager-support-1224.patch
-Patch7: 0007-rhel-make-sure-previous-hostname-file-ends-with-a-ne.patch
-Patch8: 0008-Don-t-change-permissions-of-netrules-target-2076.patch
-Patch9: 0009-Make-user-vendor-data-sensitive-and-remove-log-permi.patch
-Patch10: 0010-Do-not-generate-dsa-and-ed25519-key-types-when-crypt.patch
-Patch11: 0011-Revert-Manual-revert-Use-Network-Manager-and-Netplan.patch
-Patch12: 0012-Revert-Revert-Add-native-NetworkManager-support-1224.patch
-Patch13: 0013-net-sysconfig-do-not-use-the-highest-autoconnect-pri.patch
-Patch14: 0014-net-sysconfig-cosmetic-fix-tox-formatting.patch
-Patch15: 0015-nm-generate-ipv6-stateful-dhcp-config-at-par-with-sy.patch
-Patch16: 0016-network_manager-add-a-method-for-ipv6-static-IP-conf.patch
-Patch17: 0017-net-sysconfig-enable-sysconfig-renderer-if-network-m.patch
-Patch18: 0018-network-manager-Set-higher-autoconnect-priority-for-.patch
-Patch19: 0019-Set-default-renderer-as-sysconfig-for-c9s-RHEL-9.patch
-Patch20: 0020-Revert-Set-default-renderer-as-sysconfig-for-c9s-RHE.patch
-Patch21: 0021-Set-default-renderer-as-sysconfig-for-centos-rhel-41.patch
-Patch22: 0022-test-fixes-update-tests-to-reflect-AUTOCONNECT_PRIOR.patch
-Patch23: 0023-test-fixes-remove-NM_CONTROLLED-no-from-tests.patch
-Patch24: 0024-Revert-limit-permissions-on-def_log_file.patch
-Patch25: 0025-test-fixes-changes-to-apply-RHEL-specific-config-set.patch
-Patch26: 0026-Enable-SUSE-based-distros-for-ca-handling-2036.patch
-Patch27: 0027-Handle-non-existent-ca-cert-config-situation-2073.patch
-Patch28: 0028-logging-keep-current-file-mode-of-log-file-if-its-st.patch
-Patch29: 0029-DS-VMware-modify-a-few-log-level-4284.patch
-Patch30: 0030-NM-renderer-set-default-IPv6-addr-gen-mode-for-all-i.patch
+Patch1:               0001-Add-initial-redhat-changes.patch
+Patch2:               0002-Do-not-write-NM_CONTROLLED-no-in-generated-interface.patch
+Patch3:               0003-Setting-highest-autoconnect-priority-for-network-scr.patch
+Patch4:               0004-limit-permissions-on-def_log_file.patch
+Patch5:               0005-Manual-revert-Use-Network-Manager-and-Netplan-as-def.patch
+Patch6:               0006-Revert-Add-native-NetworkManager-support-1224.patch
+Patch7:               0007-rhel-make-sure-previous-hostname-file-ends-with-a-ne.patch
+Patch8:               0008-Don-t-change-permissions-of-netrules-target-2076.patch
+Patch9:               0009-Make-user-vendor-data-sensitive-and-remove-log-permi.patch
+Patch10:              0010-Do-not-generate-dsa-and-ed25519-key-types-when-crypt.patch
+Patch11:              0011-Revert-Manual-revert-Use-Network-Manager-and-Netplan.patch
+Patch12:              0012-Revert-Revert-Add-native-NetworkManager-support-1224.patch
+Patch13:              0013-net-sysconfig-do-not-use-the-highest-autoconnect-pri.patch
+Patch14:              0014-net-sysconfig-cosmetic-fix-tox-formatting.patch
+Patch15:              0015-nm-generate-ipv6-stateful-dhcp-config-at-par-with-sy.patch
+Patch16:              0016-network_manager-add-a-method-for-ipv6-static-IP-conf.patch
+Patch17:              0017-net-sysconfig-enable-sysconfig-renderer-if-network-m.patch
+Patch18:              0018-network-manager-Set-higher-autoconnect-priority-for-.patch
+Patch19:              0019-Set-default-renderer-as-sysconfig-for-c9s-RHEL-9.patch
+Patch20:              0020-Revert-Set-default-renderer-as-sysconfig-for-c9s-RHE.patch
+Patch21:              0021-Set-default-renderer-as-sysconfig-for-centos-rhel-41.patch
+Patch22:              0022-test-fixes-update-tests-to-reflect-AUTOCONNECT_PRIOR.patch
+Patch23:              0023-test-fixes-remove-NM_CONTROLLED-no-from-tests.patch
+Patch24:              0024-Revert-limit-permissions-on-def_log_file.patch
+Patch25:              0025-test-fixes-changes-to-apply-RHEL-specific-config-set.patch
+Patch26:              0026-Enable-SUSE-based-distros-for-ca-handling-2036.patch
+Patch27:              0027-Handle-non-existent-ca-cert-config-situation-2073.patch
+Patch28:              0028-logging-keep-current-file-mode-of-log-file-if-its-st.patch
+Patch29:              0029-DS-VMware-modify-a-few-log-level-4284.patch
+Patch30:              0030-NM-renderer-set-default-IPv6-addr-gen-mode-for-all-i.patch
+Patch31:              future-backport.patch
+Patch32:              0001-Remove-rh-subscription.patch
 
-BuildArch:      noarch
+BuildArch:            noarch
 
-BuildRequires:  pkgconfig(systemd)
-BuildRequires:  python3-devel
-BuildRequires:  python3-setuptools
-BuildRequires:  systemd
+BuildRequires:        pkgconfig(systemd)
+BuildRequires:        python3-devel
+BuildRequires:        python3-setuptools
+BuildRequires:        systemd
 
 # For tests
-BuildRequires:  iproute
-BuildRequires:  python3-configobj
+BuildRequires:        iproute
+BuildRequires:        python3-configobj
 # https://bugzilla.redhat.com/show_bug.cgi?id=1695953
-BuildRequires:  python3-distro
+BuildRequires:        python3-distro
 # https://bugzilla.redhat.com/show_bug.cgi?id=1417029
-BuildRequires:  python3-httpretty >= 0.8.14-2
-BuildRequires:  python3-jinja2
-BuildRequires:  python3-jsonpatch
-BuildRequires:  python3-oauthlib
-BuildRequires:  python3-prettytable
-BuildRequires:  python3-pyserial
-BuildRequires:  python3-PyYAML
-BuildRequires:  python3-requests
-BuildRequires:  python3-six
+BuildRequires:        python3-httpretty >= 0.8.14-2
+BuildRequires:        python3-jinja2
+BuildRequires:        python3-jsonpatch
+BuildRequires:        python3-oauthlib
+BuildRequires:        python3-prettytable
+BuildRequires:        python3-pyserial
+BuildRequires:        python3-PyYAML
+BuildRequires:        python3-requests
+BuildRequires:        python3-six
 # dnf is needed to make cc_ntp unit tests work
 # https://bugs.launchpad.net/cloud-init/+bug/1721573
-BuildRequires:  /usr/bin/dnf
+BuildRequires:        /usr/bin/dnf
 
-Requires:       e2fsprogs
-Requires:       iproute
-Requires:       libselinux-python3
-Requires:       policycoreutils-python3
-Requires:       procps
-Requires:       python3-configobj
+Requires:             e2fsprogs
+Requires:             iproute
+Requires:             libselinux-python3
+Requires:             policycoreutils-python3
+Requires:             procps
+Requires:             python3-configobj
 # https://bugzilla.redhat.com/show_bug.cgi?id=1695953
-Requires:       python3-distro
-Requires:       python3-jinja2
-Requires:       python3-jsonpatch
-Requires:       python3-oauthlib
-Requires:       python3-prettytable
-Requires:       python3-pyserial
-Requires:       python3-PyYAML
-Requires:       python3-requests
-Requires:       python3-six
-Requires:       shadow-utils
-Requires:       util-linux
-Requires:       xfsprogs
-Requires:       dhcp-client
+Requires:             python3-distro
+Requires:             python3-jinja2
+Requires:             python3-jsonpatch
+Requires:             python3-oauthlib
+Requires:             python3-prettytable
+Requires:             python3-pyserial
+Requires:             python3-PyYAML
+Requires:             python3-requests
+Requires:             python3-six
+Requires:             shadow-utils
+Requires:             util-linux
+Requires:             xfsprogs
+Requires:             dhcp-client
 # https://bugzilla.redhat.com/show_bug.cgi?id=2032524
-Requires:       gdisk
-Requires:       openssl
-Requires:       python3-netifaces
+Requires:             gdisk
+Requires:             openssl
+Requires:             python3-netifaces
 
 %{?systemd_requires}
 
@@ -258,6 +260,9 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
+* Tue Nov 07 2023 Release Engineering <releng@openela.org> - 23.1.1.0.2
+- Apply OpenELA fixes
+
 * Thu Aug 17 2023 Miroslav Rezanina <mrezanin@redhat.com> - 23.1.1-11
 - Resolves: bz#2232296
 
@@ -635,7 +640,7 @@ fi
 
 * Thu Apr 13 2017 Charalampos Stratakis <cstratak@redhat.com> 0.7.9-4
 - Import to RHEL 7
-Resolves: rhbz#1427280
+Resolves:             rhbz#1427280
 
 * Tue Mar 07 2017 Lars Kellogg-Stedman <lars@redhat.com> 0.7.9-3
 - fixes for network config generation
