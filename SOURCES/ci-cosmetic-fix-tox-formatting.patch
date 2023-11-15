@@ -1,0 +1,35 @@
+From 9f560fd70f64cbe1827e2e490206d245f3ac7812 Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Fri, 7 Jul 2023 15:38:14 +0530
+Subject: [PATCH 08/11] cosmetic: fix tox formatting
+
+This is a cosmetic formatting change that makes tox happy.
+
+X-downstream-only: true
+
+fixes: 06b2d8279628eb5d0 ("include 'NOZEROCONF=yes' in /etc/sysconfig/network")
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/net/sysconfig.py | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index 5bf3e7ca..421564ee 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -1028,9 +1028,9 @@ class Renderer(renderer.Renderer):
+             for line in util.load_file(sysconfig_path, quiet=True).split("\n"):
+                 if "cloud-init" in line:
+                     break
+-                if not line.startswith(("NETWORKING=",
+-                                        "IPV6_AUTOCONF=",
+-                                        "NETWORKING_IPV6=")):
++                if not line.startswith(
++                    ("NETWORKING=", "IPV6_AUTOCONF=", "NETWORKING_IPV6=")
++                ):
+                     netcfg.append(line)
+             # Now generate the cloud-init portion of sysconfig/network
+             netcfg.extend([_make_header(), "NETWORKING=yes"])
+-- 
+2.39.3
+

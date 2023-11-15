@@ -1,0 +1,47 @@
+From d0c97b400552489ed39ef44fed0889111e528bca Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Tue, 11 Apr 2023 04:20:00 -0400
+Subject: settings.py: update settings for rhel
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Please see commit 5e1e568d7085fd4443
+
+(" Add initial redhat setup")
+from rhel8.8.0 branch for setings.py. Applying the same for the rebased
+cloud-init.
+
+X-downstream-only: true
+
+Signed-off-by: ￼Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/settings.py | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/cloudinit/settings.py b/cloudinit/settings.py
+index 681ea771..88aac6be 100644
+--- a/cloudinit/settings.py
++++ b/cloudinit/settings.py
+@@ -54,13 +54,16 @@ CFG_BUILTIN = {
+     "def_log_file": "/var/log/cloud-init.log",
+     "def_log_file_mode": 0o600,
+     "log_cfgs": [],
+-    "syslog_fix_perms": ["syslog:adm", "root:adm", "root:wheel", "root:root"],
++    "syslog_fix_perms": [],
++    "mount_default_fields": [None, None, "auto", "defaults,nofail", "0", "2"],
++    "ssh_deletekeys": False,
++    "ssh_genkeytypes": [],
+     "system_info": {
+         "paths": {
+             "cloud_dir": "/var/lib/cloud",
+             "templates_dir": "/etc/cloud/templates/",
+         },
+-        "distro": "ubuntu",
++        "distro": "rhel",
+         "network": {"renderers": None},
+     },
+     "vendor_data": {"enabled": True, "prefix": []},
+-- 
+2.37.3
+

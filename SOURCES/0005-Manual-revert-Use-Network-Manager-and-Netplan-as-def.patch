@@ -1,0 +1,95 @@
+From 0616dbd3f523395b619960b67b3b65c2f0ea15f4 Mon Sep 17 00:00:00 2001
+From: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date: Fri, 10 Mar 2023 11:51:48 +0100
+Subject: Manual revert "Use Network-Manager and Netplan as default renderers
+ for RHEL and Fedora (#1465)"
+
+This reverts changes done in commit 7703aa98b.
+Done by hand because the doc file affected by that commit has changed.
+
+X-downstream-only: true
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+---
+ cloudinit/net/renderers.py           |  1 -
+ config/cloud.cfg.tmpl                |  3 ---
+ doc/rtd/reference/network-config.rst | 16 ++--------------
+ 3 files changed, 2 insertions(+), 18 deletions(-)
+
+diff --git a/cloudinit/net/renderers.py b/cloudinit/net/renderers.py
+index fcf7feba..b241683f 100644
+--- a/cloudinit/net/renderers.py
++++ b/cloudinit/net/renderers.py
+@@ -30,7 +30,6 @@ DEFAULT_PRIORITY = [
+     "eni",
+     "sysconfig",
+     "netplan",
+-    "network-manager",
+     "freebsd",
+     "netbsd",
+     "openbsd",
+diff --git a/config/cloud.cfg.tmpl b/config/cloud.cfg.tmpl
+index 7238c102..12f32c51 100644
+--- a/config/cloud.cfg.tmpl
++++ b/config/cloud.cfg.tmpl
+@@ -381,9 +381,6 @@ system_info:
+ {% elif variant in ["dragonfly"] %}
+    network:
+       renderers: ['freebsd']
+-{% elif variant in ["fedora"] or is_rhel %}
+-   network:
+-      renderers: ['netplan', 'network-manager', 'networkd', 'sysconfig', 'eni']
+ {% elif variant == "openmandriva" %}
+    network:
+       renderers: ['network-manager', 'networkd']
+diff --git a/doc/rtd/reference/network-config.rst b/doc/rtd/reference/network-config.rst
+index ea331f1c..bc52afa5 100644
+--- a/doc/rtd/reference/network-config.rst
++++ b/doc/rtd/reference/network-config.rst
+@@ -176,16 +176,6 @@ this state, ``cloud-init`` delegates rendering of the configuration to
+ distro-supported formats. The following ``renderers`` are supported in
+ ``cloud-init``:
+ 
+-NetworkManager
+---------------
+-
+-`NetworkManager`_ is the standard Linux network configuration tool suite. It
+-supports a wide range of networking setups. Configuration is typically stored
+-in :file:`/etc/NetworkManager`.
+-
+-It is the default for a number of Linux distributions; notably Fedora,
+-CentOS/RHEL, and their derivatives.
+-
+ ENI
+ ---
+ 
+@@ -223,7 +213,6 @@ preference) is as follows:
+ - ENI
+ - Sysconfig
+ - Netplan
+-- NetworkManager
+ - FreeBSD
+ - NetBSD
+ - OpenBSD
+@@ -234,7 +223,6 @@ preference) is as follows:
+ 
+ - **ENI**: using ``ifup``, ``ifdown`` to manage device setup/teardown
+ - **Netplan**: using ``netplan apply`` to manage device setup/teardown
+-- **NetworkManager**: using ``nmcli`` to manage device setup/teardown
+ - **Networkd**: using ``ip`` to manage device setup/teardown
+ 
+ When applying the policy, ``cloud-init`` checks if the current instance has the
+@@ -244,8 +232,8 @@ supplying an updated configuration in cloud-config. ::
+ 
+   system_info:
+     network:
+-      renderers: ['netplan', 'network-manager', 'eni', 'sysconfig', 'freebsd', 'netbsd', 'openbsd']
+-      activators: ['eni', 'netplan', 'network-manager', 'networkd']
++      renderers: ['netplan', 'eni', 'sysconfig', 'freebsd', 'netbsd', 'openbsd']
++      activators: ['eni', 'netplan', 'networkd']
+ 
+ Network configuration tools
+ ===========================
+-- 
+2.37.3
+

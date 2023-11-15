@@ -1,0 +1,65 @@
+From 5a3db5dddab530ad45aaaa0e20fdaadc9a82a7c9 Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Tue, 4 Apr 2023 19:59:07 +0530
+Subject: [PATCH] rhel: make sure previous-hostname file ends with a new line
+ (#2108)
+
+RH-Author: Ani Sinha <None>
+RH-MergeRequest: 97: rhel: make sure previous-hostname file ends with a new line (#2108)
+RH-Bugzilla: 2182407
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: Jon Maloy <jmaloy@redhat.com>
+RH-Commit: [1/1] 126208f85cc3bf5f2264bd5a71524716b28a7686 (anisinha/rhel-cloud-init)
+
+cloud-init strips new line from "/etc/hostname" on rhel distro when processing
+"/var/lib/cloud/data/previous-hostname". Although this does not pose a serious
+issue, it is still better if the behavior is similar to other distros like
+Ubuntu where /previous-hostname does end with a new line. Fix this issue by
+using hostname parser in rhel similar to debian.
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit 6d42aa8e2c1a5454a658ab4e2b9cead2677c77cd)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/distros/rhel.py | 5 ++++-
+ tools/.github-cla-signers | 1 +
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/cloudinit/distros/rhel.py b/cloudinit/distros/rhel.py
+index df7dc3d6..9625709e 100644
+--- a/cloudinit/distros/rhel.py
++++ b/cloudinit/distros/rhel.py
+@@ -13,6 +13,7 @@ from cloudinit import distros, helpers
+ from cloudinit import log as logging
+ from cloudinit import subp, util
+ from cloudinit.distros import rhel_util
++from cloudinit.distros.parsers.hostname import HostnameConf
+ from cloudinit.settings import PER_INSTANCE
+ 
+ LOG = logging.getLogger(__name__)
+@@ -111,7 +112,9 @@ class Distro(distros.Distro):
+         # systemd will never update previous-hostname for us, so
+         # we need to do it ourselves
+         if self.uses_systemd() and filename.endswith("/previous-hostname"):
+-            util.write_file(filename, hostname)
++            conf = HostnameConf("")
++            conf.set_hostname(hostname)
++            util.write_file(filename, str(conf), 0o644)
+         elif self.uses_systemd():
+             subp.subp(["hostnamectl", "set-hostname", str(hostname)])
+         else:
+diff --git a/tools/.github-cla-signers b/tools/.github-cla-signers
+index d8cca015..457dacf4 100644
+--- a/tools/.github-cla-signers
++++ b/tools/.github-cla-signers
+@@ -9,6 +9,7 @@ andgein
+ andrew-lee-metaswitch
+ andrewbogott
+ andrewlukoshko
++ani-sinha
+ antonyc
+ aswinrajamannar
+ beantaxi
+-- 
+2.37.3
+

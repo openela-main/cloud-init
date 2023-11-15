@@ -1,0 +1,286 @@
+From 3a070f23440c9eb6e0e5fb3605e36285e8a5b727 Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Fri, 23 Jun 2023 16:54:24 +0530
+Subject: [PATCH 03/11] test fixes: remove NM_CONTROLLED=no from tests
+
+X-downstream-only: true
+fixes: b3b96bff187e9 ("Do not write NM_CONTROLLED=no in generated interface config files")
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ tests/unittests/cmd/devel/test_net_convert.py |  1 -
+ tests/unittests/distros/test_netconfig.py     |  8 -------
+ tests/unittests/test_net.py                   | 23 -------------------
+ 3 files changed, 32 deletions(-)
+
+diff --git a/tests/unittests/cmd/devel/test_net_convert.py b/tests/unittests/cmd/devel/test_net_convert.py
+index 71654750..e0114a2e 100644
+--- a/tests/unittests/cmd/devel/test_net_convert.py
++++ b/tests/unittests/cmd/devel/test_net_convert.py
+@@ -62,7 +62,6 @@ SAMPLE_SYSCONFIG_CONTENT = """\
+ #
+ BOOTPROTO=dhcp
+ DEVICE=eth0
+-NM_CONTROLLED=no
+ ONBOOT=yes
+ TYPE=Ethernet
+ USERCTL=no
+diff --git a/tests/unittests/distros/test_netconfig.py b/tests/unittests/distros/test_netconfig.py
+index b1c89ce3..7f9ac054 100644
+--- a/tests/unittests/distros/test_netconfig.py
++++ b/tests/unittests/distros/test_netconfig.py
+@@ -723,7 +723,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+                 GATEWAY=192.168.1.254
+                 IPADDR=192.168.1.5
+                 NETMASK=255.255.255.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -733,7 +732,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+                 """\
+                 BOOTPROTO=dhcp
+                 DEVICE=eth1
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -764,7 +762,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+                 IPV6_AUTOCONF=no
+                 IPV6_DEFAULTGW=2607:f0d0:1002:0011::1
+                 IPV6_FORCE_ACCEPT_RA=no
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -774,7 +771,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+                 """\
+                 BOOTPROTO=dhcp
+                 DEVICE=eth1
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -821,7 +817,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+                 HWADDR=00:16:3e:60:7c:df
+                 IPADDR=192.10.1.2
+                 NETMASK=255.255.255.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -833,7 +828,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+                 DEVICE=infra0
+                 IPADDR=10.0.1.2
+                 NETMASK=255.255.0.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 PHYSDEV=eth0
+                 USERCTL=no
+@@ -869,7 +863,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+                 DEVICE=eth0
+                 IPADDR=192.10.1.2
+                 NETMASK=255.255.255.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -881,7 +874,6 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+                 DEVICE=eth0.1001
+                 IPADDR=10.0.1.2
+                 NETMASK=255.255.0.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 PHYSDEV=eth0
+                 USERCTL=no
+diff --git a/tests/unittests/test_net.py b/tests/unittests/test_net.py
+index 7abe61b9..6274f12d 100644
+--- a/tests/unittests/test_net.py
++++ b/tests/unittests/test_net.py
+@@ -1495,7 +1495,6 @@ NETWORK_CONFIGS = {
+                 DHCPV6C=yes
+                 IPV6INIT=yes
+                 DEVICE=iface0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -1586,7 +1585,6 @@ NETWORK_CONFIGS = {
+                 IPV6INIT=yes
+                 IPV6_FORCE_ACCEPT_RA=yes
+                 DEVICE=iface0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -1662,7 +1660,6 @@ NETWORK_CONFIGS = {
+                 IPV6INIT=yes
+                 IPV6_FORCE_ACCEPT_RA=no
+                 DEVICE=iface0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -1726,7 +1723,6 @@ NETWORK_CONFIGS = {
+                 IPV6_AUTOCONF=yes
+                 IPV6INIT=yes
+                 DEVICE=iface0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -1781,7 +1777,6 @@ NETWORK_CONFIGS = {
+             IPV6_AUTOCONF=no
+             IPV6_FORCE_ACCEPT_RA=no
+             DEVICE=iface0
+-            NM_CONTROLLED=no
+             ONBOOT=yes
+             TYPE=Ethernet
+             USERCTL=no
+@@ -1838,7 +1833,6 @@ NETWORK_CONFIGS = {
+             IPV6_AUTOCONF=yes
+             IPV6INIT=yes
+             DEVICE=iface0
+-            NM_CONTROLLED=no
+             ONBOOT=yes
+             TYPE=Ethernet
+             USERCTL=no
+@@ -1920,7 +1914,6 @@ NETWORK_CONFIGS = {
+             IPV6_AUTOCONF=no
+             IPV6_FORCE_ACCEPT_RA=yes
+             DEVICE=iface0
+-            NM_CONTROLLED=no
+             ONBOOT=yes
+             TYPE=Ethernet
+             USERCTL=no
+@@ -1961,7 +1954,6 @@ NETWORK_CONFIGS = {
+                 """\
+                 BOOTPROTO=dhcp
+                 DEVICE=iface0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -2038,7 +2030,6 @@ NETWORK_CONFIGS = {
+                 BOOTPROTO=dhcp
+                 DEVICE=iface0
+                 ETHTOOL_OPTS="wol g"
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -2504,7 +2495,6 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 IPADDR=192.168.200.7
+                 MTU=9000
+                 NETMASK=255.255.255.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=InfiniBand
+                 USERCTL=no"""
+@@ -3576,7 +3566,6 @@ iface bond0 inet6 static
+                 IPV6INIT=yes
+                 IPV6_AUTOCONF=no
+                 IPV6_FORCE_ACCEPT_RA=no
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -3592,7 +3581,6 @@ iface bond0 inet6 static
+                 IPV6INIT=yes
+                 IPV6_AUTOCONF=no
+                 IPV6_FORCE_ACCEPT_RA=no
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -3882,7 +3870,6 @@ iface bond0 inet6 static
+                 BOOTPROTO=none
+                 DEVICE=eth0
+                 HWADDR=cf:d6:af:48:e8:80
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no"""
+@@ -4718,7 +4705,6 @@ HWADDR=fa:16:3e:25:b4:59
+ IPADDR=51.68.89.122
+ MTU=1500
+ NETMASK=255.255.240.0
+-NM_CONTROLLED=no
+ ONBOOT=yes
+ TYPE=Ethernet
+ USERCTL=no
+@@ -4732,7 +4718,6 @@ DEVICE=eth1
+ DHCLIENT_SET_DEFAULT_ROUTE=no
+ HWADDR=fa:16:3e:b1:ca:29
+ MTU=9000
+-NM_CONTROLLED=no
+ ONBOOT=yes
+ TYPE=Ethernet
+ USERCTL=no
+@@ -4983,7 +4968,6 @@ USERCTL=no
+                    IPV6_FORCE_ACCEPT_RA=no
+                    IPV6_DEFAULTGW=2001:db8::1
+                    NETMASK=255.255.255.0
+-                   NM_CONTROLLED=no
+                    ONBOOT=yes
+                    TYPE=Ethernet
+                    USERCTL=no
+@@ -5015,7 +4999,6 @@ USERCTL=no
+                 """\
+                 BOOTPROTO=none
+                 DEVICE=eno1
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -5028,7 +5011,6 @@ USERCTL=no
+                 IPADDR=192.6.1.9
+                 MTU=1495
+                 NETMASK=255.255.255.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 PHYSDEV=eno1
+                 USERCTL=no
+@@ -5064,7 +5046,6 @@ USERCTL=no
+                 IPADDR=10.101.8.65
+                 MTU=1334
+                 NETMASK=255.255.255.192
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Bond
+                 USERCTL=no
+@@ -5076,7 +5057,6 @@ USERCTL=no
+                 BOOTPROTO=none
+                 DEVICE=enp0s0
+                 MASTER=bond0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 SLAVE=yes
+                 TYPE=Bond
+@@ -5089,7 +5069,6 @@ USERCTL=no
+                 BOOTPROTO=none
+                 DEVICE=enp0s1
+                 MASTER=bond0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 SLAVE=yes
+                 TYPE=Bond
+@@ -5120,7 +5099,6 @@ USERCTL=no
+                 DEVICE=eno1
+                 HWADDR=07-1c-c6-75-a4-be
+                 METRIC=100
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+@@ -5211,7 +5189,6 @@ USERCTL=no
+                 IPV6_FORCE_ACCEPT_RA=no
+                 MTU=1400
+                 NETMASK=255.255.248.0
+-                NM_CONTROLLED=no
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no
+-- 
+2.39.3
+

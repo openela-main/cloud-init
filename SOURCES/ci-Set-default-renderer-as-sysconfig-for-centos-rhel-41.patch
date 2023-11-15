@@ -1,0 +1,44 @@
+From c33a3f27e449371e36f19269f81883c5a50131bb Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Thu, 8 Jun 2023 03:29:13 +0530
+Subject: [PATCH 7/7] Set default renderer as sysconfig for centos/rhel (#4165)
+
+RH-Author: Ani Sinha <None>
+RH-MergeRequest: 103: [RHEL8] Support configuring network by NM keyfiles
+RH-Bugzilla: 2219528
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Commit: [7/7] aec68bb518c82bfd6b67fbe89b72bbda81c01cf9
+
+Currently, network manager is disabled on c9s and therefore sysconfig is used as the primary renderer for network configuration. We do not want to change this for c9s even when network-manager renderer is re-enabled as it would mean a big behaviour change for cloud-init in the centos 9 stream.
+
+This change bumps up the priority for sysconfig renderer so that it is used as the primary renderer on c9s and other downstream distributions derived from it. In the next major centos stream release, we may use network manager as the default renderer and make changes accordingly.
+
+RHBZ: 2209349
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit a1f375095bd0ac8628c4fdc79538dc177bb9ff99)
+---
+ config/cloud.cfg.tmpl | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/config/cloud.cfg.tmpl b/config/cloud.cfg.tmpl
+index 7238c102..020340f9 100644
+--- a/config/cloud.cfg.tmpl
++++ b/config/cloud.cfg.tmpl
+@@ -381,9 +381,12 @@ system_info:
+ {% elif variant in ["dragonfly"] %}
+    network:
+       renderers: ['freebsd']
+-{% elif variant in ["fedora"] or is_rhel %}
++{% elif variant in ["fedora"] %}
+    network:
+       renderers: ['netplan', 'network-manager', 'networkd', 'sysconfig', 'eni']
++{% elif is_rhel %}
++   network:
++      renderers: ['sysconfig', 'eni', 'netplan', 'network-manager', 'networkd' ]
+ {% elif variant == "openmandriva" %}
+    network:
+       renderers: ['network-manager', 'networkd']
+-- 
+2.39.3
+
