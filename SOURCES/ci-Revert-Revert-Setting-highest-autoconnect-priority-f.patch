@@ -1,0 +1,37 @@
+From c843f5cf7152846da3422185a6ad344dd47604e6 Mon Sep 17 00:00:00 2001
+From: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date: Mon, 8 Aug 2022 10:02:48 +0200
+Subject: [PATCH 3/3] Revert "Revert "Setting highest autoconnect priority for
+ network-scripts""
+
+RH-Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-MergeRequest: 31: Revert "Revert "Setting highest autoconnect priority for network-scripts""
+RH-Commit: [3/3] 09b83fb559675a2fcd4fc5394b251f034b92c1bc (eesposit/cloud-init-centos-)
+RH-Bugzilla: 2107463 2104389 2117532 2098501
+RH-Acked-by: Eduardo Otubo <otubo@redhat.com>
+RH-Acked-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+RH-Acked-by: Mohamed Gamal Morsy <mmorsy@redhat.com>
+
+Reverting NM means we also need to restore this patch
+This reverts commit 0eba5c6194017ef493a735cb24757c57d8af7b59.
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+---
+ cloudinit/net/sysconfig.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index d8c53312..b50035b5 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -337,6 +337,7 @@ class Renderer(renderer.Renderer):
+             "ONBOOT": True,
+             "USERCTL": False,
+             "BOOTPROTO": "none",
++            "AUTOCONNECT_PRIORITY": 999
+         },
+         "suse": {"BOOTPROTO": "static", "STARTMODE": "auto"},
+     }
+-- 
+2.31.1
+

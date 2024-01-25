@@ -1,0 +1,77 @@
+From d51546dee17c9abbb9d44fb33cf81be085a46dae Mon Sep 17 00:00:00 2001
+From: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date: Thu, 19 Jan 2023 09:40:10 +0100
+Subject: [PATCH 22/22] cc_set_hostname: ignore
+ /var/lib/cloud/data/set-hostname if it's empty (#1967)
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=2140893
+
+commit 9c7502a801763520639c66125eb373123d1e4f44
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Wed Jan 18 17:55:16 2023 +0100
+
+    cc_set_hostname: ignore /var/lib/cloud/data/set-hostname if it's empty (#1967)
+
+    If the file exists but is empty, do nothing.
+    Otherwise cloud-init will crash because it does not handle the empty file.
+
+    RHBZ: 2140893
+
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+---
+ cloudinit/config/cc_set_hostname.py            |  2 +-
+ tests/unittests/config/test_cc_set_hostname.py | 17 +++++++++++++++++
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/cloudinit/config/cc_set_hostname.py b/cloudinit/config/cc_set_hostname.py
+index 2674fa20..7e3d5b74 100644
+--- a/cloudinit/config/cc_set_hostname.py
++++ b/cloudinit/config/cc_set_hostname.py
+@@ -86,7 +86,7 @@ def handle(name, cfg, cloud, log, _args):
+     # distro._read_hostname implementation so we only validate  one artifact.
+     prev_fn = os.path.join(cloud.get_cpath("data"), "set-hostname")
+     prev_hostname = {}
+-    if os.path.exists(prev_fn):
++    if os.path.exists(prev_fn) and os.stat(prev_fn).st_size > 0:
+         prev_hostname = util.load_json(util.load_file(prev_fn))
+     hostname_changed = hostname != prev_hostname.get(
+         "hostname"
+diff --git a/tests/unittests/config/test_cc_set_hostname.py b/tests/unittests/config/test_cc_set_hostname.py
+index 3d1d86ee..2c92949f 100644
+--- a/tests/unittests/config/test_cc_set_hostname.py
++++ b/tests/unittests/config/test_cc_set_hostname.py
+@@ -5,6 +5,7 @@ import os
+ import shutil
+ import tempfile
+ from io import BytesIO
++from pathlib import Path
+ from unittest import mock
+ 
+ from configobj import ConfigObj
+@@ -242,5 +243,21 @@ class TestHostname(t_help.FilesystemMockingTestCase):
+             str(ctx_mgr.exception),
+         )
+ 
++    def test_ignore_empty_previous_artifact_file(self):
++        cfg = {
++            "hostname": "blah",
++            "fqdn": "blah.blah.blah.yahoo.com",
++        }
++        distro = self._fetch_distro("debian")
++        paths = helpers.Paths({"cloud_dir": self.tmp})
++        ds = None
++        cc = cloud.Cloud(ds, paths, {}, distro, None)
++        self.patchUtils(self.tmp)
++        prev_fn = Path(cc.get_cpath("data")) / "set-hostname"
++        prev_fn.touch()
++        cc_set_hostname.handle("cc_set_hostname", cfg, cc, LOG, [])
++        contents = util.load_file("/etc/hostname")
++        self.assertEqual("blah", contents.strip())
++
+ 
+ # vi: ts=4 expandtab
+-- 
+2.39.1
+

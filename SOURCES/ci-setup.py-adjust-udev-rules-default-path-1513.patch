@@ -1,0 +1,57 @@
+From f771d841dbdef8fbb1c1a3d1b8d51ff101354502 Mon Sep 17 00:00:00 2001
+From: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date: Fri, 17 Jun 2022 09:41:23 +0200
+Subject: [PATCH 3/3] setup.py: adjust udev/rules default path (#1513)
+
+RH-Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-MergeRequest: 30: setup.py: adjust udev/rules default path (#1513)
+RH-Commit: [2/2] b71362acefa15587b2c72e8981708065d2fcfa07 (eesposit/cloud-init-centos-)
+RH-Bugzilla: 2096270
+RH-Acked-by: Mohamed Gamal Morsy <mmorsy@redhat.com>
+RH-Acked-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+
+commit 70715125f3af118ae242770e61064c24f41e9a02
+Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date:   Thu Jun 16 20:39:42 2022 +0200
+
+    setup.py: adjust udev/rules default path (#1513)
+
+    RHEL must put cloudinit .rules files in /usr/lib/udev/rules.d
+    This place is a rhel standard and since it is used by all packages
+    cannot be modified.
+
+    Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+---
+ setup.py | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/setup.py b/setup.py
+index a9132d2c..fdf27cd7 100755
+--- a/setup.py
++++ b/setup.py
+@@ -302,6 +302,11 @@ data_files = [
+     ),
+ ]
+ if not platform.system().endswith("BSD"):
++
++    RULES_PATH = LIB
++    if os.path.isfile("/etc/redhat-release"):
++        RULES_PATH = "/usr/lib"
++
+     data_files.extend(
+         [
+             (
+@@ -309,7 +314,7 @@ if not platform.system().endswith("BSD"):
+                 ["tools/hook-network-manager"],
+             ),
+             (ETC + "/dhcp/dhclient-exit-hooks.d/", ["tools/hook-dhclient"]),
+-            (LIB + "/udev/rules.d", [f for f in glob("udev/*.rules")]),
++            (RULES_PATH + "/udev/rules.d", [f for f in glob("udev/*.rules")]),
+             (
+                 ETC + "/systemd/system/sshd-keygen@.service.d/",
+                 ["systemd/disable-sshd-keygen-if-cloud-init-active.conf"],
+-- 
+2.35.1
+
