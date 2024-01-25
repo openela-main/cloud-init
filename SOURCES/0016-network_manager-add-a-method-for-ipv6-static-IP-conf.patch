@@ -1,0 +1,31 @@
+From 018aa09f049791755dd746b533abb2464b08a92d Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Mon, 22 May 2023 21:33:53 +0530
+Subject: [PATCH] network_manager: add a method for ipv6 static IP
+ configuration (#4127)
+
+The static IP configuration for IPv6 in the method_map is missing for
+network manager renderer. This is causing cloud-init to generate a keyfile with
+IPv6 method as "auto" instead of "manual". This fixes this issue.
+
+fixes: #4126
+RHBZ: 2196284
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit 5d440856cb6d2b4c908015fe4eb7227615c17c8b)
+---
+ cloudinit/net/network_manager.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/cloudinit/net/network_manager.py b/cloudinit/net/network_manager.py
+index 744c0cbb..2752f52f 100644
+--- a/cloudinit/net/network_manager.py
++++ b/cloudinit/net/network_manager.py
+@@ -69,6 +69,7 @@ class NMConnection:
+ 
+         method_map = {
+             "static": "manual",
++            "static6": "manual",
+             "dhcp6": "auto",
+             "ipv6_slaac": "auto",
+             "ipv6_dhcpv6-stateless": "auto",

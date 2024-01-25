@@ -1,0 +1,121 @@
+From 34ef256dc614c7dcf5b04a431d410030e333d82b Mon Sep 17 00:00:00 2001
+From: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date: Mon, 17 Apr 2023 10:20:16 +0200
+Subject: [PATCH] Don't change permissions of netrules target (#2076)
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=2182948
+
+commit 56c88cafd1b3606e814069a79f4ec265fc427c87
+Author: James Falcon <james.falcon@canonical.com>
+Date:   Thu Mar 23 10:21:56 2023 -0500
+
+    Don't change permissions of netrules target (#2076)
+
+    Set permissions if file doesn't exist. Leave them if it does.
+
+    LP: #2011783
+
+    Co-authored-by: Chad Smith <chad.smith@canonical.com>
+
+ Conflicts:
+       cloudinit/net/sysconfig.py: enable_ifcfg_rh missing upstream
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+---
+ cloudinit/net/eni.py                      |  4 +++-
+ cloudinit/net/sysconfig.py                |  7 ++++++-
+ tests/unittests/distros/test_netconfig.py | 20 ++++++++++++++++++--
+ 3 files changed, 27 insertions(+), 4 deletions(-)
+
+diff --git a/cloudinit/net/eni.py b/cloudinit/net/eni.py
+index 53bd35ca..1de3bec2 100644
+--- a/cloudinit/net/eni.py
++++ b/cloudinit/net/eni.py
+@@ -576,7 +576,9 @@ class Renderer(renderer.Renderer):
+             netrules = subp.target_path(target, self.netrules_path)
+             util.ensure_dir(os.path.dirname(netrules))
+             util.write_file(
+-                netrules, self._render_persistent_net(network_state)
++                netrules,
++                content=self._render_persistent_net(network_state),
++                preserve_mode=True,
+             )
+ 
+ 
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index 765c248a..e08c0c69 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -1034,7 +1034,12 @@ class Renderer(renderer.Renderer):
+         if self.netrules_path:
+             netrules_content = self._render_persistent_net(network_state)
+             netrules_path = subp.target_path(target, self.netrules_path)
+-            util.write_file(netrules_path, netrules_content, file_mode)
++            util.write_file(
++                netrules_path,
++                content=netrules_content,
++                mode=file_mode,
++                preserve_mode=True,
++            )
+         if available_nm(target=target):
+             enable_ifcfg_rh(subp.target_path(target, path=NM_CFG_FILE))
+ 
+diff --git a/tests/unittests/distros/test_netconfig.py b/tests/unittests/distros/test_netconfig.py
+index e9fb0591..b1c89ce3 100644
+--- a/tests/unittests/distros/test_netconfig.py
++++ b/tests/unittests/distros/test_netconfig.py
+@@ -458,8 +458,16 @@ class TestNetCfgDistroUbuntuEni(TestNetCfgDistroBase):
+     def eni_path(self):
+         return "/etc/network/interfaces.d/50-cloud-init.cfg"
+ 
++    def rules_path(self):
++        return "/etc/udev/rules.d/70-persistent-net.rules"
++
+     def _apply_and_verify_eni(
+-        self, apply_fn, config, expected_cfgs=None, bringup=False
++        self,
++        apply_fn,
++        config,
++        expected_cfgs=None,
++        bringup=False,
++        previous_files=(),
+     ):
+         if not expected_cfgs:
+             raise ValueError("expected_cfg must not be None")
+@@ -467,7 +475,11 @@ class TestNetCfgDistroUbuntuEni(TestNetCfgDistroBase):
+         tmpd = None
+         with mock.patch("cloudinit.net.eni.available") as m_avail:
+             m_avail.return_value = True
++            path_modes = {}
+             with self.reRooted(tmpd) as tmpd:
++                for previous_path, content, mode in previous_files:
++                    util.write_file(previous_path, content, mode=mode)
++                    path_modes[previous_path] = mode
+                 apply_fn(config, bringup)
+ 
+         results = dir2dict(tmpd)
+@@ -478,7 +490,9 @@ class TestNetCfgDistroUbuntuEni(TestNetCfgDistroBase):
+             print(results[cfgpath])
+             print("----------")
+             self.assertEqual(expected, results[cfgpath])
+-            self.assertEqual(0o644, get_mode(cfgpath, tmpd))
++            self.assertEqual(
++                path_modes.get(cfgpath, 0o644), get_mode(cfgpath, tmpd)
++            )
+ 
+     def test_apply_network_config_and_bringup_filters_priority_eni_ub(self):
+         """Network activator search priority can be overridden from config."""
+@@ -527,11 +541,13 @@ class TestNetCfgDistroUbuntuEni(TestNetCfgDistroBase):
+     def test_apply_network_config_eni_ub(self):
+         expected_cfgs = {
+             self.eni_path(): V1_NET_CFG_OUTPUT,
++            self.rules_path(): "",
+         }
+         self._apply_and_verify_eni(
+             self.distro.apply_network_config,
+             V1_NET_CFG,
+             expected_cfgs=expected_cfgs.copy(),
++            previous_files=((self.rules_path(), "something", 0o660),),
+         )
+ 
+     def test_apply_network_config_ipv6_ub(self):

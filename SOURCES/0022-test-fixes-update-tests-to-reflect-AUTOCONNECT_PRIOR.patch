@@ -1,0 +1,509 @@
+From 908387bc0a73ae3431c0ad90f83e6a4a4e902edb Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Fri, 23 Jun 2023 15:47:09 +0530
+Subject: [PATCH] test fixes: update tests to reflect AUTOCONNECT_PRIORITY
+ setting
+
+X-downstream-only: true
+fixes: 0a2c6b6118ff ("net/sysconfig: do not use the highest autoconnect priority")
+fixes: c589da20eb92 ("Setting highest autoconnect priority for network-scripts")
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ tests/unittests/cmd/devel/test_net_convert.py |  1 +
+ tests/unittests/distros/test_netconfig.py     |  8 +++
+ tests/unittests/test_net.py                   | 51 +++++++++++++++++++
+ 3 files changed, 60 insertions(+)
+
+diff --git a/tests/unittests/cmd/devel/test_net_convert.py b/tests/unittests/cmd/devel/test_net_convert.py
+index 71654750..43e879f7 100644
+--- a/tests/unittests/cmd/devel/test_net_convert.py
++++ b/tests/unittests/cmd/devel/test_net_convert.py
+@@ -60,6 +60,7 @@ DHCP=ipv4
+ SAMPLE_SYSCONFIG_CONTENT = """\
+ # Created by cloud-init on instance boot automatically, do not edit.
+ #
++AUTOCONNECT_PRIORITY=120
+ BOOTPROTO=dhcp
+ DEVICE=eth0
+ NM_CONTROLLED=no
+diff --git a/tests/unittests/distros/test_netconfig.py b/tests/unittests/distros/test_netconfig.py
+index b1c89ce3..eaf723c8 100644
+--- a/tests/unittests/distros/test_netconfig.py
++++ b/tests/unittests/distros/test_netconfig.py
+@@ -717,6 +717,7 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+         expected_cfgs = {
+             self.ifcfg_path("eth0"): dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEFROUTE=yes
+                 DEVICE=eth0
+@@ -731,6 +732,7 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+             ),
+             self.ifcfg_path("eth1"): dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=dhcp
+                 DEVICE=eth1
+                 NM_CONTROLLED=no
+@@ -756,6 +758,7 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+         expected_cfgs = {
+             self.ifcfg_path("eth0"): dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEFROUTE=yes
+                 DEVICE=eth0
+@@ -772,6 +775,7 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+             ),
+             self.ifcfg_path("eth1"): dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=dhcp
+                 DEVICE=eth1
+                 NM_CONTROLLED=no
+@@ -816,6 +820,7 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+         expected_cfgs = {
+             self.ifcfg_path("eth0"): dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eth0
+                 HWADDR=00:16:3e:60:7c:df
+@@ -829,6 +834,7 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+             ),
+             self.ifcfg_path("infra0"): dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=infra0
+                 IPADDR=10.0.1.2
+@@ -865,6 +871,7 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+         expected_cfgs = {
+             self.ifcfg_path("eth0"): dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eth0
+                 IPADDR=192.10.1.2
+@@ -877,6 +884,7 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+             ),
+             self.ifcfg_path("eth0.1001"): dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eth0.1001
+                 IPADDR=10.0.1.2
+diff --git a/tests/unittests/test_net.py b/tests/unittests/test_net.py
+index 7abe61b9..1261840b 100644
+--- a/tests/unittests/test_net.py
++++ b/tests/unittests/test_net.py
+@@ -578,6 +578,7 @@ dns = none
+                 """
+ # Created by cloud-init on instance boot automatically, do not edit.
+ #
++AUTOCONNECT_PRIORITY=120
+ BOOTPROTO=none
+ DEFROUTE=yes
+ DEVICE=eth0
+@@ -740,6 +741,7 @@ dns = none
+                 """
+ # Created by cloud-init on instance boot automatically, do not edit.
+ #
++AUTOCONNECT_PRIORITY=120
+ BOOTPROTO=none
+ DEFROUTE=yes
+ DEVICE=eth0
+@@ -897,6 +899,7 @@ dns = none
+                 """
+ # Created by cloud-init on instance boot automatically, do not edit.
+ #
++AUTOCONNECT_PRIORITY=120
+ BOOTPROTO=none
+ DEFROUTE=yes
+ DEVICE=eth0
+@@ -1085,6 +1088,7 @@ NETWORK_CONFIGS = {
+         "expected_sysconfig_rhel": {
+             "ifcfg-eth1": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eth1
+                 HWADDR=cf:d6:af:48:e8:80
+@@ -1094,6 +1098,7 @@ NETWORK_CONFIGS = {
+             ),
+             "ifcfg-eth99": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=dhcp
+                 DEFROUTE=yes
+                 DEVICE=eth99
+@@ -1344,6 +1349,7 @@ NETWORK_CONFIGS = {
+         "expected_sysconfig_rhel": {
+             "ifcfg-iface0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=iface0
+                 IPADDR=192.168.14.2
+@@ -1490,6 +1496,7 @@ NETWORK_CONFIGS = {
+         "expected_sysconfig_rhel": {
+             "ifcfg-iface0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=iface0
+                 DHCPV6C=yes
+@@ -1580,6 +1587,7 @@ NETWORK_CONFIGS = {
+         "expected_sysconfig_rhel": {
+             "ifcfg-iface0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=iface0
+                 DHCPV6C=yes
+@@ -1656,6 +1664,7 @@ NETWORK_CONFIGS = {
+         "expected_sysconfig_rhel": {
+             "ifcfg-iface0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=iface0
+                 DHCPV6C=yes
+@@ -1721,6 +1730,7 @@ NETWORK_CONFIGS = {
+         "expected_sysconfig_rhel": {
+             "ifcfg-iface0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=iface0
+                 IPV6_AUTOCONF=yes
+@@ -1774,6 +1784,7 @@ NETWORK_CONFIGS = {
+         "expected_sysconfig_rhel": {
+             "ifcfg-iface0": textwrap.dedent(
+                 """\
++            AUTOCONNECT_PRIORITY=120
+             BOOTPROTO=none
+             DEVICE=iface0
+             IPV6ADDR=2001:1::1/64
+@@ -1831,6 +1842,7 @@ NETWORK_CONFIGS = {
+         "expected_sysconfig_rhel": {
+             "ifcfg-iface0": textwrap.dedent(
+                 """\
++            AUTOCONNECT_PRIORITY=120
+             BOOTPROTO=none
+             DEVICE=iface0
+             DHCPV6C=yes
+@@ -1913,6 +1925,7 @@ NETWORK_CONFIGS = {
+         "expected_sysconfig_rhel": {
+             "ifcfg-iface0": textwrap.dedent(
+                 """\
++            AUTOCONNECT_PRIORITY=120
+             BOOTPROTO=dhcp
+             DEVICE=iface0
+             DHCPV6C=yes
+@@ -1959,6 +1972,7 @@ NETWORK_CONFIGS = {
+         "expected_sysconfig_rhel": {
+             "ifcfg-iface0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=dhcp
+                 DEVICE=iface0
+                 NM_CONTROLLED=no
+@@ -2035,6 +2049,7 @@ NETWORK_CONFIGS = {
+         "expected_sysconfig_rhel": {
+             "ifcfg-iface0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=dhcp
+                 DEVICE=iface0
+                 ETHTOOL_OPTS="wol g"
+@@ -2371,6 +2386,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+         "expected_sysconfig_rhel": {
+             "ifcfg-bond0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BONDING_MASTER=yes
+                 BONDING_OPTS="mode=active-backup """
+                 """xmit_hash_policy=layer3+4 """
+@@ -2388,6 +2404,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+             ),
+             "ifcfg-bond0.200": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=dhcp
+                 DEVICE=bond0.200
+                 DHCLIENT_SET_DEFAULT_ROUTE=no
+@@ -2399,6 +2416,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+             "ifcfg-br0": textwrap.dedent(
+                 """\
+                 AGEING=250
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEFROUTE=yes
+                 DEVICE=br0
+@@ -2418,6 +2436,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+             ),
+             "ifcfg-eth0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eth0
+                 HWADDR=c0:d6:9f:2c:e8:80
+@@ -2427,6 +2446,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+             ),
+             "ifcfg-eth0.101": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEFROUTE=yes
+                 DEVICE=eth0.101
+@@ -2446,6 +2466,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+             ),
+             "ifcfg-eth1": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eth1
+                 HWADDR=aa:d6:9f:2c:e8:80
+@@ -2457,6 +2478,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+             ),
+             "ifcfg-eth2": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eth2
+                 HWADDR=c0:bb:9f:2c:e8:80
+@@ -2468,6 +2490,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+             ),
+             "ifcfg-eth3": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 BRIDGE=br0
+                 DEVICE=eth3
+@@ -2478,6 +2501,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+             ),
+             "ifcfg-eth4": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 BRIDGE=br0
+                 DEVICE=eth4
+@@ -2488,6 +2512,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+             ),
+             "ifcfg-eth5": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=dhcp
+                 DEVICE=eth5
+                 DHCLIENT_SET_DEFAULT_ROUTE=no
+@@ -2498,6 +2523,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+             ),
+             "ifcfg-ib0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=ib0
+                 HWADDR=a0:00:02:20:fe:80:00:00:00:00:00:00:ec:0d:9a:03:00:15:e2:c1
+@@ -3203,6 +3229,7 @@ iface bond0 inet6 static
+         "expected_sysconfig_rhel": {
+             "ifcfg-bond0": textwrap.dedent(
+                 """\
++        AUTOCONNECT_PRIORITY=120
+         BONDING_MASTER=yes
+         BONDING_OPTS="mode=active-backup xmit_hash_policy=layer3+4 """
+                 """miimon=100 num_grat_arp=5 """
+@@ -3233,6 +3260,7 @@ iface bond0 inet6 static
+             ),
+             "ifcfg-bond0s0": textwrap.dedent(
+                 """\
++        AUTOCONNECT_PRIORITY=120
+         BOOTPROTO=none
+         DEVICE=bond0s0
+         HWADDR=aa:bb:cc:dd:e8:00
+@@ -3260,6 +3288,7 @@ iface bond0 inet6 static
+             ),
+             "ifcfg-bond0s1": textwrap.dedent(
+                 """\
++        AUTOCONNECT_PRIORITY=120
+         BOOTPROTO=none
+         DEVICE=bond0s1
+         HWADDR=aa:bb:cc:dd:e8:01
+@@ -3409,6 +3438,7 @@ iface bond0 inet6 static
+         "expected_sysconfig_rhel": {
+             "ifcfg-en0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=en0
+                 HWADDR=aa:bb:cc:dd:e8:00
+@@ -3418,6 +3448,7 @@ iface bond0 inet6 static
+             ),
+             "ifcfg-en0.99": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEFROUTE=yes
+                 DEVICE=en0.99
+@@ -3555,6 +3586,7 @@ iface bond0 inet6 static
+         "expected_sysconfig_rhel": {
+             "ifcfg-br0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=br0
+                 IPADDR=192.168.2.2
+@@ -3568,6 +3600,7 @@ iface bond0 inet6 static
+             ),
+             "ifcfg-eth0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 BRIDGE=br0
+                 DEVICE=eth0
+@@ -3584,6 +3617,7 @@ iface bond0 inet6 static
+             ),
+             "ifcfg-eth1": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 BRIDGE=br0
+                 DEVICE=eth1
+@@ -3772,6 +3806,7 @@ iface bond0 inet6 static
+         "expected_sysconfig_rhel": {
+             "ifcfg-eth0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eth0
+                 HWADDR=52:54:00:12:34:00
+@@ -3784,6 +3819,7 @@ iface bond0 inet6 static
+             ),
+             "ifcfg-eth1": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eth1
+                 HWADDR=52:54:00:12:34:aa
+@@ -3795,6 +3831,7 @@ iface bond0 inet6 static
+             ),
+             "ifcfg-eth2": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eth2
+                 HWADDR=52:54:00:12:34:ff
+@@ -3879,6 +3916,7 @@ iface bond0 inet6 static
+         "expected_sysconfig_rhel": {
+             "ifcfg-eth0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eth0
+                 HWADDR=cf:d6:af:48:e8:80
+@@ -4474,6 +4512,7 @@ class TestRhelSysConfigRendering(CiTestCase):
+             expected_content = """
+ # Created by cloud-init on instance boot automatically, do not edit.
+ #
++AUTOCONNECT_PRIORITY=120
+ BOOTPROTO=dhcp
+ DEVICE=eth1000
+ HWADDR=07-1c-c6-75-a4-be
+@@ -4681,6 +4720,7 @@ USERCTL=no
+         expected = """\
+ # Created by cloud-init on instance boot automatically, do not edit.
+ #
++AUTOCONNECT_PRIORITY=120
+ BOOTPROTO=none
+ DEFROUTE=yes
+ DEVICE=interface0
+@@ -4710,6 +4750,7 @@ USERCTL=no
+         expected_i1 = """\
+ # Created by cloud-init on instance boot automatically, do not edit.
+ #
++AUTOCONNECT_PRIORITY=120
+ BOOTPROTO=none
+ DEFROUTE=yes
+ DEVICE=eth0
+@@ -4727,6 +4768,7 @@ USERCTL=no
+         expected_i2 = """\
+ # Created by cloud-init on instance boot automatically, do not edit.
+ #
++AUTOCONNECT_PRIORITY=120
+ BOOTPROTO=dhcp
+ DEVICE=eth1
+ DHCLIENT_SET_DEFAULT_ROUTE=no
+@@ -4755,6 +4797,7 @@ USERCTL=no
+         expected = """\
+ # Created by cloud-init on instance boot automatically, do not edit.
+ #
++AUTOCONNECT_PRIORITY=120
+ BOOTPROTO=dhcp
+ DEVICE=eth0
+ ONBOOT=yes
+@@ -4968,6 +5011,7 @@ USERCTL=no
+             "expected_sysconfig": {
+                 "ifcfg-ens3": textwrap.dedent(
+                     """\
++                   AUTOCONNECT_PRIORITY=120
+                    BOOTPROTO=none
+                    DEFROUTE=yes
+                    DEVICE=ens3
+@@ -5013,6 +5057,7 @@ USERCTL=no
+         expected = {
+             "ifcfg-eno1": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eno1
+                 NM_CONTROLLED=no
+@@ -5023,6 +5068,7 @@ USERCTL=no
+             ),
+             "ifcfg-eno1.1000": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEVICE=eno1.1000
+                 IPADDR=192.6.1.9
+@@ -5056,6 +5102,7 @@ USERCTL=no
+         expected = {
+             "ifcfg-bond0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BONDING_MASTER=yes
+                 BONDING_SLAVE0=enp0s0
+                 BONDING_SLAVE1=enp0s1
+@@ -5072,6 +5119,7 @@ USERCTL=no
+             ),
+             "ifcfg-enp0s0": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BONDING_MASTER=yes
+                 BOOTPROTO=none
+                 DEVICE=enp0s0
+@@ -5085,6 +5133,7 @@ USERCTL=no
+             ),
+             "ifcfg-enp0s1": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BONDING_MASTER=yes
+                 BOOTPROTO=none
+                 DEVICE=enp0s1
+@@ -5116,6 +5165,7 @@ USERCTL=no
+         expected = {
+             "ifcfg-eno1": textwrap.dedent(
+                 """\
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=dhcp
+                 DEVICE=eno1
+                 HWADDR=07-1c-c6-75-a4-be
+@@ -5195,6 +5245,7 @@ USERCTL=no
+                 """\
+                 # Created by cloud-init on instance boot automatically, do not edit.
+                 #
++                AUTOCONNECT_PRIORITY=120
+                 BOOTPROTO=none
+                 DEFROUTE=yes
+                 DEVICE=eth0

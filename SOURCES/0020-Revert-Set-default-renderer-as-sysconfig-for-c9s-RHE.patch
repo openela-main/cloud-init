@@ -1,0 +1,25 @@
+From 86dd9b0e215a40e60a6c48401a9c04215e10cdea Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Thu, 8 Jun 2023 10:19:49 +0530
+Subject: [PATCH] Revert "Set default renderer as sysconfig for c9s/RHEL 9"
+
+This reverts commit 5394e28e896e9d18db6d359190bfb58dcbdb2646.
+
+Revert this downstream-only patch and replace it with the upstream patch.
+---
+ config/cloud.cfg.tmpl | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/config/cloud.cfg.tmpl b/config/cloud.cfg.tmpl
+index 22c6654c..7238c102 100644
+--- a/config/cloud.cfg.tmpl
++++ b/config/cloud.cfg.tmpl
+@@ -383,7 +383,7 @@ system_info:
+       renderers: ['freebsd']
+ {% elif variant in ["fedora"] or is_rhel %}
+    network:
+-      renderers: ['sysconfig', 'eni', 'netplan', 'network-manager', 'networkd']
++      renderers: ['netplan', 'network-manager', 'networkd', 'sysconfig', 'eni']
+ {% elif variant == "openmandriva" %}
+    network:
+       renderers: ['network-manager', 'networkd']
