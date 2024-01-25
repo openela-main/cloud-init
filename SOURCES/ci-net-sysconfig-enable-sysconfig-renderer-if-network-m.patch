@@ -1,0 +1,71 @@
+From 3b68f70013c84ae9efbc31aa35641b61041fd62a Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Mon, 22 May 2023 22:06:28 +0530
+Subject: [PATCH 5/7] net/sysconfig: enable sysconfig renderer if network
+ manager has ifcfg-rh plugin (#4132)
+
+RH-Author: Ani Sinha <None>
+RH-MergeRequest: 103: [RHEL8] Support configuring network by NM keyfiles
+RH-Bugzilla: 2219528
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Commit: [5/7] 4d1602e39fbf85277e50a1fde046a0b528a18364
+
+Some distributions like RHEL does not have ifup and ifdown
+scripts that traditionally handled ifcfg-eth* files. Instead RHEL
+uses network manager with ifcfg-rh plugin to handle ifcfg
+scripts. Therefore, the sysconfig should check for the
+existence of ifcfg-rh plugin in addition to checking for the
+existence of ifup and ifdown scripts in order to determine if it
+can handle ifcfg files. If either the plugin or ifup/ifdown scripts
+are present, sysconfig renderer can be enabled.
+
+fixes: #4131
+RHBZ: 2194050
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit 009dbf85a72a9077b2267d377b2ff46639fb3def)
+---
+ cloudinit/net/sysconfig.py | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index f7ac5898..5bf3e7ca 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -1,6 +1,7 @@
+ # This file is part of cloud-init. See LICENSE file for license information.
+ 
+ import copy
++import glob
+ import io
+ import os
+ import re
+@@ -1058,7 +1059,25 @@ def _supported_vlan_names(rdev, vid):
+ def available(target=None):
+     if not util.system_info()["variant"] in KNOWN_DISTROS:
+         return False
++    if available_sysconfig(target):
++        return True
++    if available_nm_ifcfg_rh(target):
++        return True
++    return False
++
++
++def available_nm_ifcfg_rh(target=None):
++    # The ifcfg-rh plugin of NetworkManager is installed.
++    # NetworkManager can handle the ifcfg files.
++    return glob.glob(
++        subp.target_path(
++            target,
++            "usr/lib*/NetworkManager/*/libnm-settings-plugin-ifcfg-rh.so",
++        )
++    )
++
+ 
++def available_sysconfig(target=None):
+     expected = ["ifup", "ifdown"]
+     search = ["/sbin", "/usr/sbin"]
+     for p in expected:
+-- 
+2.39.3
+

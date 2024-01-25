@@ -1,0 +1,183 @@
+From 0de2584f99c49b5d22bc7d1d08070d53b8fc1b3b Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Thu, 20 Jul 2023 23:56:01 +0530
+Subject: [PATCH 11/11] logging: keep current file mode of log file if its
+ stricter than the new mode (#4250)
+
+RH-Author: Ani Sinha <None>
+RH-MergeRequest: 105: [RHEL 8.9] logging: keep current file mode of log file if its stricter than the new mode (#4250)
+RH-Bugzilla: 2222501
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Commit: [1/1] 2733073d4dd119e29d1cf227e787afa15c9f8991
+
+By default, the cloud init log file is created with mode 0o644 with
+`preserve_mode` parameter of `write_file()` set to False. This means that when
+an existing log file is found, its mode will be unconditionally reset to the
+mode 0o644. It is possible that this might cause the change of the mode of the
+log file from the current more stricter mode to a less strict mode
+(when the new mode 0o644 is less strict than the existing mode of the file).
+
+In order to mitigate the above issue, check the current mode of the log file
+and if the current mode is stricter than the default new mode 0o644, then
+preserve the current mode of the file.
+
+Fixes GH-4243
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit a0e4ec15a1adffabd1c539879514eae4807c834c)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+
+ Conflicts:
+	tests/unittests/test_util.py
+---
+ cloudinit/stages.py            | 15 ++++++++++++++-
+ cloudinit/util.py              | 23 +++++++++++++++++++++++
+ tests/unittests/test_stages.py | 23 ++++++++++++++++-------
+ tests/unittests/test_util.py   | 24 ++++++++++++++++++++++++
+ 4 files changed, 77 insertions(+), 8 deletions(-)
+
+diff --git a/cloudinit/stages.py b/cloudinit/stages.py
+index 21f30a1f..979179af 100644
+--- a/cloudinit/stages.py
++++ b/cloudinit/stages.py
+@@ -200,12 +200,25 @@ class Init:
+         self._initialize_filesystem()
+ 
+     def _initialize_filesystem(self):
++        mode = 0o640
++        fmode = None
++
+         util.ensure_dirs(self._initial_subdirs())
+         log_file = util.get_cfg_option_str(self.cfg, "def_log_file")
+         if log_file:
+             # At this point the log file should have already been created
+             # in the setupLogging function of log.py
+-            util.ensure_file(log_file, mode=0o640, preserve_mode=False)
++
++            try:
++                fmode = util.get_permissions(log_file)
++            except OSError:
++                pass
++
++            # if existing file mode fmode is stricter, do not change it.
++            if fmode and util.compare_permission(fmode, mode) < 0:
++                mode = fmode
++
++            util.ensure_file(log_file, mode, preserve_mode=False)
+             perms = self.cfg.get("syslog_fix_perms")
+             if not perms:
+                 perms = {}
+diff --git a/cloudinit/util.py b/cloudinit/util.py
+index 8ba3e2b6..00892d6f 100644
+--- a/cloudinit/util.py
++++ b/cloudinit/util.py
+@@ -2087,6 +2087,29 @@ def safe_int(possible_int):
+         return None
+ 
+ 
++def compare_permission(mode1, mode2):
++    """Compare two file modes in octal.
++
++    If mode1 is less restrictive than mode2 return 1
++    If mode1 is more restrictive than mode2 return -1
++    If mode1 is same as mode2, return 0
++
++    The comparison starts from the permission of the
++    set of users in "others" and then works up to the
++    permission of "user" set.
++    """
++    # Convert modes to octal and reverse the last 3 digits
++    # so 0o640 would be become 0o046
++    mode1_oct = oct(mode1)[2:].rjust(3, "0")
++    mode2_oct = oct(mode2)[2:].rjust(3, "0")
++    m1 = int(mode1_oct[:-3] + mode1_oct[-3:][::-1], 8)
++    m2 = int(mode2_oct[:-3] + mode2_oct[-3:][::-1], 8)
++
++    # Then do a traditional cmp()
++    # https://docs.python.org/3.0/whatsnew/3.0.html#ordering-comparisons
++    return (m1 > m2) - (m1 < m2)
++
++
+ def chmod(path, mode):
+     real_mode = safe_int(mode)
+     if path and real_mode:
+diff --git a/tests/unittests/test_stages.py b/tests/unittests/test_stages.py
+index a61f9df9..831ea9f2 100644
+--- a/tests/unittests/test_stages.py
++++ b/tests/unittests/test_stages.py
+@@ -606,13 +606,22 @@ class TestInit_InitializeFilesystem:
+         # Assert we create it 0o640  by default if it doesn't already exist
+         assert 0o640 == stat.S_IMODE(log_file.stat().mode)
+ 
+-    def test_existing_file_permissions(self, init, tmpdir):
++    @pytest.mark.parametrize(
++        "set_perms,expected_perms",
++        [
++            (0o640, 0o640),
++            (0o606, 0o640),
++            (0o600, 0o600),
++        ],
++    )
++    def test_existing_file_permissions(
++        self, init, tmpdir, set_perms, expected_perms
++    ):
+         """Test file permissions are set as expected.
+ 
+-        CIS Hardening requires 640 permissions. These permissions are
+-        currently hardcoded on every boot, but if there's ever a reason
+-        to change this, we need to then ensure that they
+-        are *not* set every boot.
++        CIS Hardening requires 640 permissions. If the file has looser
++        permissions, then hard code 640. If the file has tighter
++        permissions, then leave them as they are
+ 
+         See https://bugs.launchpad.net/cloud-init/+bug/1900837.
+         """
+@@ -620,9 +629,9 @@ class TestInit_InitializeFilesystem:
+         log_file.ensure()
+         # Use a mode that will never be made the default so this test will
+         # always be valid
+-        log_file.chmod(0o606)
++        log_file.chmod(set_perms)
+         init._cfg = {"def_log_file": str(log_file)}
+ 
+         init._initialize_filesystem()
+ 
+-        assert 0o640 == stat.S_IMODE(log_file.stat().mode)
++        assert expected_perms == stat.S_IMODE(log_file.stat().mode)
+diff --git a/tests/unittests/test_util.py b/tests/unittests/test_util.py
+index 07142a86..af96da05 100644
+--- a/tests/unittests/test_util.py
++++ b/tests/unittests/test_util.py
+@@ -3026,3 +3026,27 @@ class TestVersion:
+     )
+     def test_from_str(self, str_ver, cls_ver):
+         assert util.Version.from_str(str_ver) == cls_ver
++
++
++class TestComparePermissions:
++    @pytest.mark.parametrize(
++        "perm1,perm2,expected",
++        [
++            (0o777, 0o777, 0),
++            (0o000, 0o000, 0),
++            (0o421, 0o421, 0),
++            (0o1640, 0o1640, 0),
++            (0o1407, 0o1600, 1),
++            (0o1600, 0o1407, -1),
++            (0o407, 0o600, 1),
++            (0o600, 0o407, -1),
++            (0o007, 0o700, 1),
++            (0o700, 0o007, -1),
++            (0o077, 0o100, 1),
++            (0o644, 0o640, 1),
++            (0o640, 0o600, 1),
++            (0o600, 0o400, 1),
++        ],
++    )
++    def test_compare_permissions(self, perm1, perm2, expected):
++        assert util.compare_permission(perm1, perm2) == expected
+-- 
+2.39.3
+

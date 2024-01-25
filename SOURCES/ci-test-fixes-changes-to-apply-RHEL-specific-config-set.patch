@@ -1,0 +1,47 @@
+From 866817455283619c706e837a77fb31adf3bdd3ce Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Fri, 23 Jun 2023 17:54:04 +0530
+Subject: [PATCH 07/11] test fixes: changes to apply RHEL specific config
+ settings to tests
+
+X-downstream-only: true
+
+fixes: c4d66915520554adedff9b ("Add initial redhat changes")
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ tests/unittests/cmd/test_main.py | 17 +++++++++++------
+ 1 file changed, 11 insertions(+), 6 deletions(-)
+
+diff --git a/tests/unittests/cmd/test_main.py b/tests/unittests/cmd/test_main.py
+index e9ad0bb8..435d3be3 100644
+--- a/tests/unittests/cmd/test_main.py
++++ b/tests/unittests/cmd/test_main.py
+@@ -119,14 +119,19 @@ class TestMain(FilesystemMockingTestCase):
+                 {
+                     "def_log_file": "/var/log/cloud-init.log",
+                     "log_cfgs": [],
+-                    "syslog_fix_perms": [
+-                        "syslog:adm",
+-                        "root:adm",
+-                        "root:wheel",
+-                        "root:root",
+-                    ],
+                     "vendor_data": {"enabled": True, "prefix": []},
+                     "vendor_data2": {"enabled": True, "prefix": []},
++                    "syslog_fix_perms": [],
++                    "ssh_deletekeys": False,
++                    "ssh_genkeytypes": [],
++                    "mount_default_fields": [
++                        None,
++                        None,
++                        "auto",
++                        "defaults,nofail",
++                        "0",
++                        "2",
++                    ],
+                 }
+             )
+             updated_cfg.pop("system_info")
+-- 
+2.39.3
+

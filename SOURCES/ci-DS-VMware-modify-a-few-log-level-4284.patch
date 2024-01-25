@@ -1,0 +1,72 @@
+From ca6f3397e1ebdb48f5b85c5cf262356480991430 Mon Sep 17 00:00:00 2001
+From: PengpengSun <40026211+PengpengSun@users.noreply.github.com>
+Date: Tue, 25 Jul 2023 05:21:46 +0800
+Subject: [PATCH] DS VMware: modify a few log level (#4284)
+
+RH-Author: Ani Sinha <None>
+RH-MergeRequest: 106: DS VMware: modify a few log level (#4284)
+RH-Bugzilla: 2223810
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: Camilla Conte <cconte@redhat.com>
+RH-Commit: [1/1] 1741098157b12b28be03ecdb041fa1f78d7ac042 (anisinha/rhel-cloud-init)
+
+Multiple ip addresses are common scenario for modern Linux, so set
+debug log level for such cases.
+
+(cherry picked from commit 4a6a9d3f6c8fe213c51f6c1336f1dd378bf4bdca)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/sources/DataSourceVMware.py | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/cloudinit/sources/DataSourceVMware.py b/cloudinit/sources/DataSourceVMware.py
+index 07a80222..bc3b5a5f 100644
+--- a/cloudinit/sources/DataSourceVMware.py
++++ b/cloudinit/sources/DataSourceVMware.py
+@@ -1,6 +1,6 @@
+ # Cloud-Init DataSource for VMware
+ #
+-# Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
++# Copyright (c) 2018-2023 VMware, Inc. All Rights Reserved.
+ #
+ # Authors: Anish Swaminathan <anishs@vmware.com>
+ #          Andrew Kutz <akutz@vmware.com>
+@@ -719,7 +719,7 @@ def get_default_ip_addrs():
+             af_inet4 = addr4_fams.get(netifaces.AF_INET)
+             if af_inet4:
+                 if len(af_inet4) > 1:
+-                    LOG.warning(
++                    LOG.debug(
+                         "device %s has more than one ipv4 address: %s",
+                         dev4,
+                         af_inet4,
+@@ -737,7 +737,7 @@ def get_default_ip_addrs():
+             af_inet6 = addr6_fams.get(netifaces.AF_INET6)
+             if af_inet6:
+                 if len(af_inet6) > 1:
+-                    LOG.warning(
++                    LOG.debug(
+                         "device %s has more than one ipv6 address: %s",
+                         dev6,
+                         af_inet6,
+@@ -752,7 +752,7 @@ def get_default_ip_addrs():
+         af_inet6 = addr4_fams.get(netifaces.AF_INET6)
+         if af_inet6:
+             if len(af_inet6) > 1:
+-                LOG.warning(
++                LOG.debug(
+                     "device %s has more than one ipv6 address: %s",
+                     dev4,
+                     af_inet6,
+@@ -767,7 +767,7 @@ def get_default_ip_addrs():
+         af_inet4 = addr6_fams.get(netifaces.AF_INET)
+         if af_inet4:
+             if len(af_inet4) > 1:
+-                LOG.warning(
++                LOG.debug(
+                     "device %s has more than one ipv4 address: %s",
+                     dev6,
+                     af_inet4,
+-- 
+2.41.0
+
