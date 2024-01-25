@@ -1,0 +1,52 @@
+From ffa647e83efd4293bd027e9e390274aad8a12d94 Mon Sep 17 00:00:00 2001
+From: Eduardo Otubo <otubo@redhat.com>
+Date: Fri, 7 May 2021 13:36:13 +0200
+Subject: include 'NOZEROCONF=yes' in /etc/sysconfig/network
+
+RH-Author: Eduardo Otubo <otubo@redhat.com>
+Message-id: <20190320114559.23708-1-otubo@redhat.com>
+Patchwork-id: 84937
+O-Subject: [RHEL-7.7 cloud-init PATCH] include 'NOZEROCONF=yes' in /etc/sysconfig/network
+Bugzilla: 1653131
+RH-Acked-by: Cathy Avery <cavery@redhat.com>
+RH-Acked-by: Mohammed Gamal <mgamal@redhat.com>
+RH-Acked-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+
+The option NOZEROCONF=yes is not included by default in
+/etc/sysconfig/network, which is required by Overcloud instances. The
+patch also includes tests for the modifications.
+
+X-downstream-only: yes
+Resolves: rhbz#1653131
+
+Signed-off-by: Eduardo Otubo <otubo@redhat.com>
+Signed-off-by: Miroslav Rezanina <mrezanin@redhat.com>
+---
+ cloudinit/net/sysconfig.py | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index e06ddee7..362e8d19 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -1038,7 +1038,16 @@ class Renderer(renderer.Renderer):
+         # Distros configuring /etc/sysconfig/network as a file e.g. Centos
+         if sysconfig_path.endswith("network"):
+             util.ensure_dir(os.path.dirname(sysconfig_path))
+-            netcfg = [_make_header(), "NETWORKING=yes"]
++            netcfg = []
++            for line in util.load_file(sysconfig_path, quiet=True).split("\n"):
++                if "cloud-init" in line:
++                    break
++                if not line.startswith(("NETWORKING=",
++                                        "IPV6_AUTOCONF=",
++                                        "NETWORKING_IPV6=")):
++                    netcfg.append(line)
++            # Now generate the cloud-init portion of sysconfig/network
++            netcfg.extend([_make_header(), "NETWORKING=yes"])
+             if network_state.use_ipv6:
+                 netcfg.append("NETWORKING_IPV6=yes")
+                 netcfg.append("IPV6_AUTOCONF=no")
+-- 
+2.31.1
+
