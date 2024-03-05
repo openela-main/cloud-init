@@ -1,0 +1,59 @@
+From f4fdcdd05dc2c57f0453a4be3e1a4b0a39ab3fd2 Mon Sep 17 00:00:00 2001
+From: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date: Thu, 20 May 2021 08:53:55 +0200
+Subject: [PATCH] rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set
+ in cloud.cfg
+
+RH-Author: Ani Sinha <None>
+RH-MergeRequest: 112: rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg
+RH-Jira: RHEL-16444
+RH-Acked-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Commit: [1/1] 855dec5dcc0892c0f7cedf06b025a794769a2a8d (anisinha/rhel-cloud-init)
+
+RH-Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-MergeRequest: 10: rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg
+RH-Commit: [1/1] 6da989423b9b6e017afbac2f1af3649b0487310f
+RH-Bugzilla: 1957532
+RH-Acked-by: Eduardo Otubo <otubo@redhat.com>
+RH-Acked-by: Cathy Avery <cavery@redhat.com>
+RH-Acked-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+RH-Acked-by: Mohamed Gamal Morsy <mmorsy@redhat.com>
+
+Currently genkeytypes in cloud.cfg is set to None, so together with
+ssh_deletekeys=1 cloudinit on first boot it will just delete the existing
+keys and not generate new ones.
+
+Just removing that property in cloud.cfg is not enough, because
+settings.py provides another empty default value that will be used
+instead, resulting to no key generated even when the property is not defined.
+
+Removing genkeytypes also in settings.py will default to GENERATE_KEY_NAMES,
+but since we want only 'rsa', 'ecdsa' and 'ed25519', add back genkeytypes in
+cloud.cfg with the above defaults.
+
+Also remove ssh_deletekeys in settings.py as we always need
+to 1 (and it also defaults to 1).
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+(cherry picked from commit b545a0cbabe8924d048b7172b30e7aad59ed32d5)
+---
+ cloudinit/settings.py | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/cloudinit/settings.py b/cloudinit/settings.py
+index a36c518d..859ad546 100644
+--- a/cloudinit/settings.py
++++ b/cloudinit/settings.py
+@@ -55,8 +55,6 @@ CFG_BUILTIN = {
+     "log_cfgs": [],
+     "syslog_fix_perms": [],
+     "mount_default_fields": [None, None, "auto", "defaults,nofail", "0", "2"],
+-    "ssh_deletekeys": False,
+-    "ssh_genkeytypes": [],
+     "system_info": {
+         "paths": {
+             "cloud_dir": "/var/lib/cloud",
+-- 
+2.41.0
+

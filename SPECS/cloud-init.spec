@@ -6,7 +6,7 @@
 
 Name:                 cloud-init
 Version:              23.1.1
-Release:              10%{?dist}.0.1
+Release:              11%{?dist}.1.0.1
 Summary:              Cloud instance init scripts
 
 Group:                System Environment/Base
@@ -54,8 +54,14 @@ Patch28:              ci-logging-keep-current-file-mode-of-log-file-if-its-st.pa
 Patch29:              ci-DS-VMware-modify-a-few-log-level-4284.patch
 # For bz#2229460 - [rhel-8.9] [RFE] Configure "ipv6.addr-gen-mode=eui64' as default in NetworkManager
 Patch30:              ci-NM-renderer-set-default-IPv6-addr-gen-mode-for-all-i.patch
-Patch31:              0001-Ensure-cloud-user-is-applied-to-OpenELA.patch
-Patch32:              0001-Remove-rh-subscription.patch
+# For RHEL-16444 - [cloud-init][rhel-8.9.0.z] Backport the patch "rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg" to fix settings.py
+Patch31:              ci-rhel-cloud.cfg-remove-ssh_genkeytypes-in-settings.py.patch
+# For RHEL-18980 - [RHEL-8] NetworkManagerActivator brings up interface failed when using sysconfig renderer [rhel-8.9.0.z]
+Patch32:              ci-net-nm-check-for-presence-of-ifcfg-files-when-nm-con.patch
+# For RHEL-18980 - [RHEL-8] NetworkManagerActivator brings up interface failed when using sysconfig renderer [rhel-8.9.0.z]
+Patch33:              ci-tests-unittests-add-a-new-unit-test-for-network-mana.patch
+Patch34:              0001-Ensure-cloud-user-is-applied-to-OpenELA.patch
+Patch35:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -274,8 +280,19 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Thu Jan 25 2024 Release Engineering <releng@openela.org> - 23.1.1.0.1
+* Tue Mar 05 2024 Release Engineering <releng@openela.org> - 23.1.1.0.1
 - Apply OpenELA fixes
+
+* Wed Dec 13 2023 Jon Maloy <jmaloy@redhat.com> - 23.1.1-11.el8_9.1
+- ci-net-nm-check-for-presence-of-ifcfg-files-when-nm-con.patch [RHEL-18980]
+- ci-tests-unittests-add-a-new-unit-test-for-network-mana.patch [RHEL-18980]
+- Resolves: RHEL-18980
+  ([RHEL-8] NetworkManagerActivator brings up interface failed when using sysconfig renderer [rhel-8.9.0.z])
+
+* Thu Nov 23 2023 Camilla Conte <cconte@redhat.com> - 23.1.1-10.el8_9.1
+- ci-rhel-cloud.cfg-remove-ssh_genkeytypes-in-settings.py.patch [RHEL-16444]
+- Resolves: RHEL-16444
+  ([cloud-init][rhel-8.9.0.z] Backport the patch "rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg" to fix settings.py)
 
 * Fri Aug 25 2023 Camilla Conte <cconte@redhat.com> - 23.1.1-10
 - Resolves: bz#2233047
