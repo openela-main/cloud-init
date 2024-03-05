@@ -1,0 +1,131 @@
+From 83cb6de08a3b2dc72aabc16c5603f5d570d9a232 Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Thu, 7 Dec 2023 21:03:13 +0530
+Subject: [PATCH] tests/unittests: add a new unit test for network manager net
+ activator (#4672)
+
+Some changes in behavior in network manager net activator was brought in with
+the commit
+d1d5166895da ("net/nm: check for presence of ifcfg files when nm connection files are absent")
+
+This change adds some unit tests that exercizes network manager activator's
+bring_up_interface() method that tests failure scenarios as well as cases
+where an ifcfg file is used to bring the interface up.
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit bb474df78bfe45ea5f05907eb710e8d5de764fc8)
+---
+ tests/unittests/test_net_activators.py | 103 +++++++++++++++++++++++++
+ 1 file changed, 103 insertions(+)
+
+diff --git a/tests/unittests/test_net_activators.py b/tests/unittests/test_net_activators.py
+index afd9056a..bc410d16 100644
+--- a/tests/unittests/test_net_activators.py
++++ b/tests/unittests/test_net_activators.py
+@@ -347,3 +347,106 @@ class TestActivatorsBringDown:
+         activator.bring_down_all_interfaces(network_state)
+         for call in m_subp.call_args_list:
+             assert call in expected_call_list
++
++
++class TestNetworkManagerActivatorBringUp:
++    @patch("cloudinit.subp.subp", return_value=("", ""))
++    @patch(
++        "cloudinit.net.network_manager.available_nm_ifcfg_rh",
++        return_value=True,
++    )
++    @patch("os.path.isfile")
++    @patch("os.path.exists", return_value=True)
++    def test_bring_up_interface_no_nm_conn(
++        self, m_exists, m_isfile, m_plugin, m_subp
++    ):
++        """
++        There is no network manager connection file but ifcfg-rh plugin is
++        present and ifcfg interface config files are also present. In this
++        case, we should use ifcfg files.
++        """
++
++        def fake_isfile_no_nmconn(filename):
++            return False if filename.endswith(".nmconnection") else True
++
++        m_isfile.side_effect = fake_isfile_no_nmconn
++
++        expected_call_list = [
++            (
++                (
++                    [
++                        "nmcli",
++                        "connection",
++                        "load",
++                        "".join(
++                            [
++                                "/etc/sysconfig/network-scripts/ifcfg-eth0",
++                            ]
++                        ),
++                    ],
++                ),
++                {},
++            ),
++            (
++                (
++                    [
++                        "nmcli",
++                        "connection",
++                        "up",
++                        "filename",
++                        "".join(
++                            [
++                                "/etc/sysconfig/network-scripts/ifcfg-eth0",
++                            ]
++                        ),
++                    ],
++                ),
++                {},
++            ),
++        ]
++
++        index = 0
++        assert NetworkManagerActivator.bring_up_interface("eth0")
++        for call in m_subp.call_args_list:
++            assert call == expected_call_list[index]
++            index += 1
++
++    @patch("cloudinit.subp.subp", return_value=("", ""))
++    @patch(
++        "cloudinit.net.network_manager.available_nm_ifcfg_rh",
++        return_value=False,
++    )
++    @patch("os.path.isfile")
++    @patch("os.path.exists", return_value=True)
++    def test_bring_up_interface_no_plugin_no_nm_conn(
++        self, m_exists, m_isfile, m_plugin, m_subp
++    ):
++        """
++        The ifcfg-rh plugin is absent and nmconnection file is also
++        not present. In this case, we can't use ifcfg file and the
++        interface bring up should fail.
++        """
++
++        def fake_isfile_no_nmconn(filename):
++            return False if filename.endswith(".nmconnection") else True
++
++        m_isfile.side_effect = fake_isfile_no_nmconn
++        assert not NetworkManagerActivator.bring_up_interface("eth0")
++
++    @patch("cloudinit.subp.subp", return_value=("", ""))
++    @patch(
++        "cloudinit.net.network_manager.available_nm_ifcfg_rh",
++        return_value=True,
++    )
++    @patch("os.path.isfile", return_value=False)
++    @patch("os.path.exists", return_value=True)
++    def test_bring_up_interface_no_conn_file(
++        self, m_exists, m_isfile, m_plugin, m_subp
++    ):
++        """
++        Neither network manager connection files are present nor
++        ifcfg files are present. Even if ifcfg-rh plugin is present,
++        we can not bring up the interface. So bring_up_interface()
++        should fail.
++        """
++        assert not NetworkManagerActivator.bring_up_interface("eth0")

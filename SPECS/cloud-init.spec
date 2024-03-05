@@ -1,6 +1,6 @@
 Name:                 cloud-init
 Version:              23.1.1
-Release:              11%{?dist}.0.2
+Release:              12%{?dist}.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -38,8 +38,11 @@ Patch27:              0027-Handle-non-existent-ca-cert-config-situation-2073.pat
 Patch28:              0028-logging-keep-current-file-mode-of-log-file-if-its-st.patch
 Patch29:              0029-DS-VMware-modify-a-few-log-level-4284.patch
 Patch30:              0030-NM-renderer-set-default-IPv6-addr-gen-mode-for-all-i.patch
-Patch31:              future-backport.patch
-Patch32:              0001-Remove-rh-subscription.patch
+Patch31:              0031-Fix-Python-3.12-unit-test-failures-2099.patch
+Patch32:              0032-net-nm-check-for-presence-of-ifcfg-files-when-nm-con.patch
+Patch33:              0033-tests-unittests-add-a-new-unit-test-for-network-mana.patch
+Patch34:              future-backport.patch
+Patch35:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -260,8 +263,14 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Thu Jan 25 2024 Release Engineering <releng@openela.org> - 23.1.1.0.2
+* Tue Mar 05 2024 Release Engineering <releng@openela.org> - 23.1.1.0.2
 - Apply OpenELA fixes
+
+* Tue Dec 19 2023 Camilla Conte <cconte@redhat.com> - 23.1.1-12
+- 0031-Fix-Python-3.12-unit-test-failures-2099.patch [RHEL-18981]
+- 0032-net-nm-check-for-presence-of-ifcfg-files-when-nm-con.patch [RHEL-18981]
+- 0033-tests-unittests-add-a-new-unit-test-for-network-mana.patch [RHEL-18981]
+- Resolves: RHEL-18981
 
 * Thu Aug 17 2023 Miroslav Rezanina <mrezanin@redhat.com> - 23.1.1-11
 - Resolves: bz#2232296
