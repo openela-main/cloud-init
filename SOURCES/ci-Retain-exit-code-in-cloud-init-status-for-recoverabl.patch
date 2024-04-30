@@ -1,0 +1,65 @@
+From cc31dc321ae35995ceff93e67aaf0b0c660aa890 Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Tue, 12 Mar 2024 12:52:10 +0530
+Subject: [PATCH] Retain exit code in cloud-init status for recoverable errors
+
+RH-Author: Ani Sinha <None>
+RH-MergeRequest: 71: Retain exit code in cloud-init status for recoverable errors
+RH-Jira: RHEL-28549
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: Cathy Avery <cavery@redhat.com>
+RH-Commit: [1/1] 00934ade88c481c012bc1947fa44e5ed59f82858 (anisinha/cloud-init)
+
+Version 23.4 of cloud-init changed the status code reported by cloud-init for
+recoverable errors from 0 to 2. Please see the commit
+70acb7f2a30d58 ("Add support for cloud-init "degraded" state (#4500)")
+
+This change has the potential to break customers who are expecting a 0 status
+and where warnings can be expected. Hence, revert the status code from 2 to 0
+even in case of recoverable errors. This retains the old behavior and hence
+avoids breaking scripts and software stack that expects 0 on the end user side.
+
+Cannonical has made a similar change downstream for similar reasons. Please see
+https://bugs.launchpad.net/ubuntu/+source/cloud-init/+bug/2048522
+and the corresponding downstream patch:
+https://github.com/canonical/cloud-init/pull/4747/commits/adce34bfd214e4eecdf87329486f30f0898dd303
+
+This patch has limited risk as it narrowly only restores the old status
+code for recoverable errors and does not modify anything else.
+
+X-downstream-only: true
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/cmd/status.py            | 2 +-
+ tests/unittests/cmd/test_status.py | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/cloudinit/cmd/status.py b/cloudinit/cmd/status.py
+index f5ee9c11..849c80bc 100644
+--- a/cloudinit/cmd/status.py
++++ b/cloudinit/cmd/status.py
+@@ -225,7 +225,7 @@ def handle_status_args(name, args) -> int:
+         return 1
+     # Recoverable error
+     elif details.status in UXAppStatusDegradedMap.values():
+-        return 2
++        return 0
+     return 0
+ 
+ 
+diff --git a/tests/unittests/cmd/test_status.py b/tests/unittests/cmd/test_status.py
+index 6c85a59a..567b517a 100644
+--- a/tests/unittests/cmd/test_status.py
++++ b/tests/unittests/cmd/test_status.py
+@@ -636,7 +636,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
+                 },
+                 None,
+                 MyArgs(long=False, wait=False, format="json"),
+-                2,
++                0,
+                 {
+                     "boot_status_code": "enabled-by-kernel-cmdline",
+                     "datasource": "nocloud",
+-- 
+2.39.3
+

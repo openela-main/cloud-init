@@ -1,0 +1,38 @@
+From e5258b60a3dbf44ef1faac91db2b45dab09de0b5 Mon Sep 17 00:00:00 2001
+From: Brett Holman <brett.holman@canonical.com>
+Date: Tue, 16 Jan 2024 12:43:17 -0700
+Subject: [PATCH] test(jsonschema): Pin jsonschema version (#4781)
+
+Release 4.21.0 broke tests
+
+(cherry picked from commit 034a5cdf10582da0492321f861b2b8b42182a54e)
+---
+ requirements.txt      | 2 +-
+ test-requirements.txt | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/requirements.txt b/requirements.txt
+index edec46a7..a095de18 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -28,7 +28,7 @@ requests
+ jsonpatch
+ 
+ # For validating cloud-config sections per schema definitions
+-jsonschema
++jsonschema<=4.20.0
+ 
+ # Used by DataSourceVMware to inspect the host's network configuration during
+ # the "setup()" function.
+diff --git a/test-requirements.txt b/test-requirements.txt
+index 19488b94..46a98b4c 100644
+--- a/test-requirements.txt
++++ b/test-requirements.txt
+@@ -9,6 +9,6 @@ pytest!=7.3.2
+ pytest-cov
+ pytest-mock
+ setuptools
+-jsonschema
++jsonschema<=4.20.0
+ responses
+ passlib

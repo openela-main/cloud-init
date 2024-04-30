@@ -1,0 +1,110 @@
+From 2f7f3dc6237ea70825dcb70f71d9718f631a9d95 Mon Sep 17 00:00:00 2001
+From: James Falcon <james.falcon@canonical.com>
+Date: Tue, 6 Feb 2024 09:24:37 -0600
+Subject: [PATCH] fix: Add types to network v1 schema (#4841)
+
+RH-Author: Cathy Avery <cavery@redhat.com>
+RH-MergeRequest: 69: fix: Add types to network v1 schema (#4841)
+RH-Jira: RHEL-21324
+RH-Acked-by: Ani Sinha <None>
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Commit: [1/1] 59b2b4b07dd9eed956943a22b90af487f18b4cbd (cavery/cloud-init-c-9-s)
+
+Conflicts:
+No log argument as we are not including commit e168b4a1383b6eae9c1dc81411d7684fcbbf7df9
+
+Even though it has conflicted with our documentation, we have allowed
+nameserver address to a be a string, mtu to be empty, and nameserver
+search to be missing. Since we have allowed these, expand our schema
+and documentation accordingly.
+
+Fixes GH-4710
+
+(cherry picked from commit b08193b376552ede5d162d8283310adc783d81bf)
+Signed-off-by: Cathy Avery <cavery@redhat.com>
+---
+ .../config/schemas/schema-network-config-v1.json    | 13 +++++++++----
+ doc/rtd/reference/network-config-format-v1.rst      |  4 ++--
+ tests/unittests/config/test_schema.py               | 13 +++++++++++++
+ 3 files changed, 24 insertions(+), 6 deletions(-)
+
+diff --git a/cloudinit/config/schemas/schema-network-config-v1.json b/cloudinit/config/schemas/schema-network-config-v1.json
+index c77885ec..56dc27c9 100644
+--- a/cloudinit/config/schemas/schema-network-config-v1.json
++++ b/cloudinit/config/schemas/schema-network-config-v1.json
+@@ -24,7 +24,10 @@
+           "description": "The lowercase MAC address of the physical device."
+         },
+         "mtu": {
+-          "type": "integer",
++          "type": [
++            "integer",
++            "null"
++          ],
+           "description": "The MTU size in bytes. The ``mtu`` key represents a device's Maximum Transmission Unit, which is the largest size packet or frame, specified in octets (eight-bit bytes), that can be sent in a packet- or frame-based network. Specifying ``mtu`` is optional. Values too small or too large for a device may be ignored by that device."
+         },
+         "subnets": {
+@@ -384,8 +387,7 @@
+       "additionalProperties": false,
+       "required": [
+         "type",
+-        "address",
+-        "search"
++        "address"
+       ],
+       "properties": {
+         "type": {
+@@ -396,7 +398,10 @@
+         },
+         "address": {
+           "description": "List of IPv4 or IPv6 address of nameservers.",
+-          "type": "array",
++          "type": [
++            "array",
++            "string"
++          ],
+           "items": {
+             "type": "string"
+           }
+diff --git a/doc/rtd/reference/network-config-format-v1.rst b/doc/rtd/reference/network-config-format-v1.rst
+index d267eb94..42f2dc22 100644
+--- a/doc/rtd/reference/network-config-format-v1.rst
++++ b/doc/rtd/reference/network-config-format-v1.rst
+@@ -252,8 +252,8 @@ Users can specify a ``nameserver`` type. Nameserver dictionaries include
+ the following keys:
+ 
+ - ``address``: List of IPv4 or IPv6 address of nameservers.
+-- ``search``: List of hostnames to include in the :file:`resolv.conf` search
+-  path.
++- ``search``: Optional. List of hostnames to include in the :file:`resolv.conf`
++  search path.
+ - ``interface``: Optional. Ties the nameserver definition to the specified
+   interface. The value specified here must match the ``name`` of an interface
+   defined in this config. If unspecified, this nameserver will be considered
+diff --git a/tests/unittests/config/test_schema.py b/tests/unittests/config/test_schema.py
+index 28f0b39d..52667332 100644
+--- a/tests/unittests/config/test_schema.py
++++ b/tests/unittests/config/test_schema.py
+@@ -2048,6 +2048,19 @@ class TestNetworkSchema:
+                 does_not_raise(),
+                 id="bond_with_all_known_properties",
+             ),
++            pytest.param(
++                {
++                    "network": {
++                        "version": 1,
++                        "config": [
++                            {"type": "physical", "name": "eth0", "mtu": None},
++                            {"type": "nameserver", "address": "8.8.8.8"},
++                        ],
++                    }
++                },
++                does_not_raise(),
++                id="GH-4710_mtu_none_and_str_address",
++            ),
+         ),
+     )
+     def test_network_schema(self, src_config, expectation):
+-- 
+2.39.3
+

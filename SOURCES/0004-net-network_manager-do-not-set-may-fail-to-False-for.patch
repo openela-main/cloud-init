@@ -1,0 +1,140 @@
+From 5fa8113a9efaa90f293b95477c4fa44e3d4b6537 Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Thu, 23 Nov 2023 12:27:51 +0530
+Subject: [PATCH] net/network_manager: do not set "may-fail" to False for both
+ ipv4 and ipv6 dhcp
+
+If "may-fail" is set to False in the Network Manager keyfile for both ipv4
+and ipv6 for dhcp configuration, it essentially means both ipv4 and ipv6 network
+initialization using dhcp must succeed for the overall network configuration to
+succeed. This means, for environments where only ipv4 or ipv6 is available but
+not both and we need to configure both ipv4 and ipv6 dhcp, the overall
+network configuration will fail. This is not what we want. When both ipv4
+and ipv6 dhcp are configured, it is enough for the overall configuration to
+succeed if any one succeeds.
+Therefore, set "may-fail" to True for both ipv4 and ipv6 if and only if both
+ipv4 and ipv6 are configured as dhcp in the Network Manager keyfile and
+"may-fail" is set to False for both. If both ipv4 and ipv6 are configured
+in the keyfile and if for any of them "may-fail" is already set to True,then
+do nothing.
+All other cases remain same as before.
+
+Please see discussions in PR #4474.
+
+Co-authored-by: James Falcon <james.falcon@canonical.com>
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit 29dd5ace73ad60c7452c39b840045fb47fe0711f)
+---
+ cloudinit/net/network_manager.py | 59 ++++++++++++++++++++++++++++++++
+ tests/unittests/test_net.py      |  8 ++---
+ 2 files changed, 63 insertions(+), 4 deletions(-)
+
+diff --git a/cloudinit/net/network_manager.py b/cloudinit/net/network_manager.py
+index 8374cfcc..8a99eb3a 100644
+--- a/cloudinit/net/network_manager.py
++++ b/cloudinit/net/network_manager.py
+@@ -71,6 +71,57 @@ class NMConnection:
+         if not self.config.has_option(section, option):
+             self.config[section][option] = value
+ 
++    def _config_option_is_set(self, section, option):
++        """
++        Checks if a config option is set. Returns True if it is,
++        else returns False.
++        """
++        return self.config.has_section(section) and self.config.has_option(
++            section, option
++        )
++
++    def _get_config_option(self, section, option):
++        """
++        Returns the value of a config option if its set,
++        else returns None.
++        """
++        if self._config_option_is_set(section, option):
++            return self.config[section][option]
++        else:
++            return None
++
++    def _change_set_config_option(self, section, option, value):
++        """
++        Overrides the value of a config option if its already set.
++        Else, if the config option is not set, it does nothing.
++        """
++        if self._config_option_is_set(section, option):
++            self.config[section][option] = value
++
++    def _set_mayfail_true_if_both_false_dhcp(self):
++        """
++        If for both ipv4 and ipv6, 'may-fail' is set to be False,
++        set it to True for both of them.
++        """
++        for family in ["ipv4", "ipv6"]:
++            if self._get_config_option(family, "may-fail") != "false":
++                # if either ipv4 or ipv6 sections are not set/configured,
++                # or if both are configured but for either ipv4 or ipv6,
++                # 'may-fail' is not 'false', do not do anything.
++                return
++            if self._get_config_option(family, "method") not in [
++                "dhcp",
++                "auto",
++            ]:
++                # if both v4 and v6 are not dhcp, do not do anything.
++                return
++
++        # If we landed here, it means both ipv4 and ipv6 are configured
++        # with dhcp/auto and both have 'may-fail' set to 'false'. So set
++        # both to 'true'.
++        for family in ["ipv4", "ipv6"]:
++            self._change_set_config_option(family, "may-fail", "true")
++
+     def _set_ip_method(self, family, subnet_type):
+         """
+         Ensures there's appropriate [ipv4]/[ipv6] for given family
+@@ -271,6 +322,14 @@ class NMConnection:
+             if family == "ipv4" and "mtu" in subnet:
+                 ipv4_mtu = subnet["mtu"]
+ 
++        # we do not want to set may-fail to false for both ipv4 and ipv6 dhcp
++        # at the at the same time. This will make the network configuration
++        # work only when both ipv4 and ipv6 dhcp succeeds. This may not be
++        # what we want. If we have configured both ipv4 and ipv6 dhcp, any one
++        # succeeding should be enough. Therefore, if "may-fail" is set to
++        # False for both ipv4 and ipv6 dhcp, set them both to True.
++        self._set_mayfail_true_if_both_false_dhcp()
++
+         if ipv4_mtu is None:
+             ipv4_mtu = device_mtu
+         if not ipv4_mtu == device_mtu:
+diff --git a/tests/unittests/test_net.py b/tests/unittests/test_net.py
+index cef4fa2d..fb4c863c 100644
+--- a/tests/unittests/test_net.py
++++ b/tests/unittests/test_net.py
+@@ -1477,11 +1477,11 @@ NETWORK_CONFIGS = {
+ 
+                 [ipv4]
+                 method=auto
+-                may-fail=false
++                may-fail=true
+ 
+                 [ipv6]
+                 method=auto
+-                may-fail=false
++                may-fail=true
+ 
+                 """
+             ),
+@@ -1650,11 +1650,11 @@ NETWORK_CONFIGS = {
+ 
+                 [ipv6]
+                 method=auto
+-                may-fail=false
++                may-fail=true
+ 
+                 [ipv4]
+                 method=auto
+-                may-fail=false
++                may-fail=true
+ 
+                 """
+             ),

@@ -1,0 +1,121 @@
+From 9e8fbb736d5e8db8bcf0fbc35a76bdad9251990a Mon Sep 17 00:00:00 2001
+From: d1r3ct0r <calvin.mwadime@canonical.com>
+Date: Sat, 20 Jan 2024 02:11:47 +0300
+Subject: [PATCH] fix(clean): stop warning when running clean command (#4761)
+
+When the clean command is run, runparts is called and README in
+/etc/cloud/clean.d is not executable which leads to a warning.
+
+No longer deliver the README in our deb package, move content
+to our online docs. Continue to deliver the /etc/cloud/clean.d
+directory as it is used by installers like subiquity.
+
+Fixes: GH-4760
+(cherry picked from commit da08a260965e35fa63def1cd8b8b472f7c354ffe)
+
+There is a downstream only change that is squashed with the upstream commit.
+The spec file under .distro/ has been updated so as to not include
+/etc/cloud/clean.d/README file. Otherwise, we shall see errors like the
+following during the build process:
+
+error: File not found: /builddir/build/.../etc/cloud/clean.d/README
+
+After a rebase, we can only maintain the downstream spec file change as
+the rest of it is clean cherry-pick from upstream.
+
+X-downstream-only: true
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ config/clean.d/README              | 18 ------------------
+ doc/rtd/reference/cli.rst          | 27 +++++++++++++++++++++++++++
+ packages/redhat/cloud-init.spec.in |  1 -
+ packages/suse/cloud-init.spec.in   |  1 -
+ 4 files changed, 27 insertions(+), 20 deletions(-)
+ delete mode 100644 config/clean.d/README
+
+diff --git a/config/clean.d/README b/config/clean.d/README
+deleted file mode 100644
+index 9b0feebe..00000000
+--- a/config/clean.d/README
++++ /dev/null
+@@ -1,18 +0,0 @@
+--- cloud-init's clean.d run-parts directory --
+-
+-This directory is provided for third party applications which need
+-additional configuration artifact cleanup from the filesystem when
+-the command `cloud-init clean` is invoked.
+-
+-The `cloud-init clean` operation is typically performed by image creators
+-when preparing a golden image for clone and redeployment. The clean command
+-removes any cloud-init semaphores, allowing cloud-init to treat the next
+-boot of this image as the "first boot". When the image is next booted
+-cloud-init will performing all initial configuration based on any valid
+-datasource meta-data and user-data.
+-
+-Any executable scripts in this subdirectory will be invoked in lexicographical
+-order with run-parts by the command: sudo cloud-init clean.
+-
+-Typical format of such scripts would be a ##-<some-app> like the following:
+-  /etc/cloud/clean.d/99-live-installer
+diff --git a/doc/rtd/reference/cli.rst b/doc/rtd/reference/cli.rst
+index 04e05c55..c36775a8 100644
+--- a/doc/rtd/reference/cli.rst
++++ b/doc/rtd/reference/cli.rst
+@@ -83,6 +83,33 @@ re-run all stages as it did on first boot.
+   config files for ssh daemon. Argument `network` removes all generated
+   config files for network. `all` removes config files of all types.
+ 
++.. note::
++
++   Cloud-init provides the directory :file:`/etc/cloud/clean.d/` for third party
++   applications which need additional configuration artifact cleanup from
++   the fileystem when the `clean` command is invoked.
++
++   The :command:`clean` operation is typically performed by image creators
++   when preparing a golden image for clone and redeployment. The clean command
++   removes any cloud-init semaphores, allowing cloud-init to treat the next
++   boot of this image as the "first boot". When the image is next booted
++   cloud-init will performing all initial configuration based on any valid
++   datasource meta-data and user-data.
++
++   Any executable scripts in this subdirectory will be invoked in lexicographical
++   order with run-parts when running the :command:`clean` command.
++
++   Typical format of such scripts would be a ##-<some-app> like the following:
++   :file:`/etc/cloud/clean.d/99-live-installer`
++
++   An example of a script is:
++
++   .. code-block:: bash
++
++      sudo rm -rf /var/lib/installer_imgs/
++      sudo rm -rf /var/log/installer/
++
++
+ .. _cli_collect_logs:
+ 
+ :command:`collect-logs`
+diff --git a/packages/redhat/cloud-init.spec.in b/packages/redhat/cloud-init.spec.in
+index 97e95096..accfb1b6 100644
+--- a/packages/redhat/cloud-init.spec.in
++++ b/packages/redhat/cloud-init.spec.in
+@@ -190,7 +190,6 @@ fi
+ # Configs
+ %config(noreplace)      %{_sysconfdir}/cloud/cloud.cfg
+ %dir                    %{_sysconfdir}/cloud/clean.d
+-%config(noreplace)      %{_sysconfdir}/cloud/clean.d/README
+ %dir                    %{_sysconfdir}/cloud/cloud.cfg.d
+ %config(noreplace)      %{_sysconfdir}/cloud/cloud.cfg.d/*.cfg
+ %config(noreplace)      %{_sysconfdir}/cloud/cloud.cfg.d/README
+diff --git a/packages/suse/cloud-init.spec.in b/packages/suse/cloud-init.spec.in
+index 62a9129b..fae3c12b 100644
+--- a/packages/suse/cloud-init.spec.in
++++ b/packages/suse/cloud-init.spec.in
+@@ -115,7 +115,6 @@ version_pys=$(cd "%{buildroot}" && find . -name version.py -type f)
+ 
+ # Configs
+ %dir                    %{_sysconfdir}/cloud/clean.d
+-%config(noreplace)      %{_sysconfdir}/cloud/clean.d/README
+ %config(noreplace) %{_sysconfdir}/cloud/cloud.cfg
+ %dir               %{_sysconfdir}/cloud/cloud.cfg.d
+ %config(noreplace) %{_sysconfdir}/cloud/cloud.cfg.d/*.cfg

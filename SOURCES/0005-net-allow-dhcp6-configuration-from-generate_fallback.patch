@@ -1,0 +1,172 @@
+From 54e87eaad7841270e530beff2dcfe68292ae87ef Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Tue, 21 Nov 2023 13:57:15 +0530
+Subject: [PATCH] net: allow dhcp6 configuration from
+ generate_fallback_configuration()
+
+This will make sure on Azure we can use both dhcp4 and dhcp6 when IMDS is not
+used. This is useful in situations where only ipv6 network is available and
+there is no dhcp4 running.
+
+This change is mostly a reversal of commit 29ed5f5b646ee and therefore,
+re-application of the commit 518047aea9 with some small changes.
+
+The issue that caused the reversal of 518047aea9 is fixed by the earlier commit:
+cab0eaf290af7 ("net/network_manager: do not set "may-fail" to False for both ipv4 and ipv6 dhcp")
+
+Fixes GH-4439
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit 0264e969166846b2f5cf87ccdb051a3a795eca15)
+---
+ cloudinit/net/__init__.py        |  7 ++++++-
+ tests/unittests/net/test_init.py |  4 ++++
+ tests/unittests/test_net.py      | 24 +++++++++++++++++++++---
+ 3 files changed, 31 insertions(+), 4 deletions(-)
+
+diff --git a/cloudinit/net/__init__.py b/cloudinit/net/__init__.py
+index bf21633b..c0888f52 100644
+--- a/cloudinit/net/__init__.py
++++ b/cloudinit/net/__init__.py
+@@ -571,7 +571,12 @@ def generate_fallback_config(config_driver=None):
+         match = {
+             "macaddress": read_sys_net_safe(target_name, "address").lower()
+         }
+-    cfg = {"dhcp4": True, "set-name": target_name, "match": match}
++    cfg = {
++        "dhcp4": True,
++        "dhcp6": True,
++        "set-name": target_name,
++        "match": match,
++    }
+     if config_driver:
+         driver = device_driver(target_name)
+         if driver:
+diff --git a/tests/unittests/net/test_init.py b/tests/unittests/net/test_init.py
+index 561d5151..60a44186 100644
+--- a/tests/unittests/net/test_init.py
++++ b/tests/unittests/net/test_init.py
+@@ -261,6 +261,7 @@ class TestGenerateFallbackConfig(CiTestCase):
+                 "eth1": {
+                     "match": {"macaddress": mac},
+                     "dhcp4": True,
++                    "dhcp6": True,
+                     "set-name": "eth1",
+                 }
+             },
+@@ -278,6 +279,7 @@ class TestGenerateFallbackConfig(CiTestCase):
+                 "eth0": {
+                     "match": {"macaddress": mac},
+                     "dhcp4": True,
++                    "dhcp6": True,
+                     "set-name": "eth0",
+                 }
+             },
+@@ -293,6 +295,7 @@ class TestGenerateFallbackConfig(CiTestCase):
+             "ethernets": {
+                 "eth0": {
+                     "dhcp4": True,
++                    "dhcp6": True,
+                     "match": {"macaddress": mac},
+                     "set-name": "eth0",
+                 }
+@@ -359,6 +362,7 @@ class TestGenerateFallbackConfig(CiTestCase):
+             "ethernets": {
+                 "ens3": {
+                     "dhcp4": True,
++                    "dhcp6": True,
+                     "match": {"name": "ens3"},
+                     "set-name": "ens3",
+                 }
+diff --git a/tests/unittests/test_net.py b/tests/unittests/test_net.py
+index fb4c863c..d9ef493b 100644
+--- a/tests/unittests/test_net.py
++++ b/tests/unittests/test_net.py
+@@ -4339,6 +4339,7 @@ class TestGenerateFallbackConfig(CiTestCase):
+             "ethernets": {
+                 "eth0": {
+                     "dhcp4": True,
++                    "dhcp6": True,
+                     "set-name": "eth0",
+                     "match": {
+                         "macaddress": "00:11:22:33:44:55",
+@@ -4423,6 +4424,9 @@ iface lo inet loopback
+ 
+ auto eth0
+ iface eth0 inet dhcp
++
++# control-alias eth0
++iface eth0 inet6 dhcp
+ """
+         self.assertEqual(expected.lstrip(), contents.lstrip())
+ 
+@@ -4512,6 +4516,9 @@ iface lo inet loopback
+ 
+ auto eth1
+ iface eth1 inet dhcp
++
++# control-alias eth1
++iface eth1 inet6 dhcp
+ """
+         self.assertEqual(expected.lstrip(), contents.lstrip())
+ 
+@@ -4736,7 +4743,9 @@ class TestRhelSysConfigRendering(CiTestCase):
+ AUTOCONNECT_PRIORITY=120
+ BOOTPROTO=dhcp
+ DEVICE=eth1000
++DHCPV6C=yes
+ HWADDR=07-1c-c6-75-a4-be
++IPV6INIT=yes
+ ONBOOT=yes
+ TYPE=Ethernet
+ USERCTL=no
+@@ -5646,7 +5655,8 @@ class TestOpenSuseSysConfigRendering(CiTestCase):
+             expected_content = """
+ # Created by cloud-init automatically, do not edit.
+ #
+-BOOTPROTO=dhcp4
++BOOTPROTO=dhcp
++DHCLIENT6_MODE=managed
+ LLADDR=07-1c-c6-75-a4-be
+ STARTMODE=auto
+ """.lstrip()
+@@ -6032,7 +6042,11 @@ class TestNetworkManagerRendering(CiTestCase):
+ 
+                 [ipv4]
+                 method=auto
+-                may-fail=false
++                may-fail=true
++
++                [ipv6]
++                method=auto
++                may-fail=true
+ 
+                 """
+                 ),
+@@ -6298,6 +6312,9 @@ iface lo inet loopback
+ 
+ auto eth1000
+ iface eth1000 inet dhcp
++
++# control-alias eth1000
++iface eth1000 inet6 dhcp
+ """
+         self.assertEqual(expected.lstrip(), contents.lstrip())
+ 
+@@ -6357,6 +6374,7 @@ class TestNetplanNetRendering:
+                   ethernets:
+                     eth1000:
+                       dhcp4: true
++                      dhcp6: true
+                       match:
+                         macaddress: 07-1c-c6-75-a4-be
+                       set-name: eth1000
+@@ -7856,7 +7874,7 @@ class TestNetworkdNetRendering(CiTestCase):
+             Name=eth1000
+             MACAddress=07-1c-c6-75-a4-be
+             [Network]
+-            DHCP=ipv4"""
++            DHCP=yes"""
+         ).rstrip(" ")
+ 
+         expected = self.create_conf_dict(expected.splitlines())

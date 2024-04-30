@@ -1,0 +1,242 @@
+From 72b2deeafd9276d15f20831f01b2f8c44616f33d Mon Sep 17 00:00:00 2001
+From: Brett Holman <brett.holman@canonical.com>
+Date: Tue, 23 Jan 2024 11:47:35 -0700
+Subject: [PATCH] Revert "Use grep for faster parsing of cloud config in
+ ds-identify (#4327)"
+
+RH-Author: Ani Sinha <None>
+RH-MergeRequest: 67: Revert "Use grep for faster parsing of cloud config in ds-identify (#4327)"
+RH-Jira: RHEL-22255
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Commit: [1/1] 5997598254cd16ea7f26d87212b0f09920fcdf50 (anisinha/cloud-init)
+
+This reverts commit 816e05d4830f5e789f1f85ef926e2849156bff3a.
+
+Reopens LP: 2030729
+Fixes GH-4794
+
+(cherry picked from commit 8ff94fe9493ad88344eb8bbf2f023c6ba2db5206)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ tests/unittests/test_ds_identify.py | 146 +---------------------------
+ tools/ds-identify                   |  31 +++---
+ 2 files changed, 15 insertions(+), 162 deletions(-)
+
+diff --git a/tests/unittests/test_ds_identify.py b/tests/unittests/test_ds_identify.py
+index ca206fb5..ba0bf779 100644
+--- a/tests/unittests/test_ds_identify.py
++++ b/tests/unittests/test_ds_identify.py
+@@ -57,146 +57,6 @@ BLKID_UEFI_UBUNTU = [
+ ]
+ 
+ 
+-DEFAULT_CLOUD_CONFIG = """\
+-# The top level settings are used as module
+-# and base configuration.
+-# A set of users which may be applied and/or used by various modules
+-# when a 'default' entry is found it will reference the 'default_user'
+-# from the distro configuration specified below
+-users:
+-   - default
+-
+-# If this is set, 'root' will not be able to ssh in and they
+-# will get a message to login instead as the default $user
+-disable_root: true
+-
+-# This will cause the set+update hostname module to not operate (if true)
+-preserve_hostname: false
+-
+-# If you use datasource_list array, keep array items in a single line.
+-# If you use multi line array, ds-identify script won't read array items.
+-# Example datasource config
+-# datasource:
+-#    Ec2:
+-#      metadata_urls: [ 'blah.com' ]
+-#      timeout: 5 # (defaults to 50 seconds)
+-#      max_wait: 10 # (defaults to 120 seconds)
+-
+-# The modules that run in the 'init' stage
+-cloud_init_modules:
+- - migrator
+- - seed_random
+- - bootcmd
+- - write-files
+- - growpart
+- - resizefs
+- - disk_setup
+- - mounts
+- - set_hostname
+- - update_hostname
+- - update_etc_hosts
+- - ca-certs
+- - rsyslog
+- - users-groups
+- - ssh
+-
+-# The modules that run in the 'config' stage
+-cloud_config_modules:
+- - wireguard
+- - snap
+- - ubuntu_autoinstall
+- - ssh-import-id
+- - keyboard
+- - locale
+- - set-passwords
+- - grub-dpkg
+- - apt-pipelining
+- - apt-configure
+- - ubuntu-advantage
+- - ntp
+- - timezone
+- - disable-ec2-metadata
+- - runcmd
+- - byobu
+-
+-# The modules that run in the 'final' stage
+-cloud_final_modules:
+- - package-update-upgrade-install
+- - fan
+- - landscape
+- - lxd
+- - ubuntu-drivers
+- - write-files-deferred
+- - puppet
+- - chef
+- - ansible
+- - mcollective
+- - salt-minion
+- - reset_rmc
+- - refresh_rmc_and_interface
+- - rightscale_userdata
+- - scripts-vendor
+- - scripts-per-once
+- - scripts-per-boot
+- - scripts-per-instance
+- - scripts-user
+- - ssh-authkey-fingerprints
+- - keys-to-console
+- - install-hotplug
+- - phone-home
+- - final-message
+- - power-state-change
+-
+-# System and/or distro specific settings
+-# (not accessible to handlers/transforms)
+-system_info:
+-   # This will affect which distro class gets used
+-   distro: ubuntu
+-   # Default user name + that default users groups (if added/used)
+-   default_user:
+-     name: ubuntu
+-     lock_passwd: True
+-     gecos: Ubuntu
+-     groups: [adm, audio, cdrom, floppy, lxd, netdev, plugdev, sudo, video]
+-     sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+-     shell: /bin/bash
+-   network:
+-     renderers: ['netplan', 'eni', 'sysconfig']
+-     activators: ['netplan', 'eni', 'network-manager', 'networkd']
+-   # Automatically discover the best ntp_client
+-   ntp_client: auto
+-   # Other config here will be given to the distro class and/or path classes
+-   paths:
+-      cloud_dir: /var/lib/cloud/
+-      templates_dir: /etc/cloud/templates/
+-   package_mirrors:
+-     - arches: [i386, amd64]
+-       failsafe:
+-         primary: http://archive.ubuntu.com/ubuntu
+-         security: http://security.ubuntu.com/ubuntu
+-       search:
+-         primary:
+-           - http://%(ec2_region)s.ec2.archive.ubuntu.com/ubuntu/
+-           - http://%(availability_zone)s.clouds.archive.ubuntu.com/ubuntu/
+-           - http://%(region)s.clouds.archive.ubuntu.com/ubuntu/
+-         security: []
+-     - arches: [arm64, armel, armhf]
+-       failsafe:
+-         primary: http://ports.ubuntu.com/ubuntu-ports
+-         security: http://ports.ubuntu.com/ubuntu-ports
+-       search:
+-         primary:
+-           - http://%(ec2_region)s.ec2.ports.ubuntu.com/ubuntu-ports/
+-           - http://%(availability_zone)s.clouds.ports.ubuntu.com/ubuntu-ports/
+-           - http://%(region)s.clouds.ports.ubuntu.com/ubuntu-ports/
+-         security: []
+-     - arches: [default]
+-       failsafe:
+-         primary: http://ports.ubuntu.com/ubuntu-ports
+-         security: http://ports.ubuntu.com/ubuntu-ports
+-   ssh_svcname: ssh
+-"""
+-
+ POLICY_FOUND_ONLY = "search,found=all,maybe=none,notfound=disabled"
+ POLICY_FOUND_OR_MAYBE = "search,found=all,maybe=all,notfound=disabled"
+ DI_DEFAULT_POLICY = "search,found=all,maybe=all,notfound=disabled"
+@@ -279,10 +139,6 @@ class DsIdentifyBase(CiTestCase):
+         if files is None:
+             files = {}
+ 
+-        cloudcfg = "etc/cloud/cloud.cfg"
+-        if cloudcfg not in files:
+-            files[cloudcfg] = DEFAULT_CLOUD_CONFIG
+-
+         if rootd is None:
+             rootd = self.tmp_dir()
+ 
+@@ -1305,7 +1161,7 @@ VALID_CFG = {
+             # Also include a datasource list of more than just
+             # [NoCloud, None], because that would automatically select
+             # NoCloud without checking
+-            "etc/cloud/cloud.cfg": dedent(
++            "/etc/cloud/cloud.cfg": dedent(
+                 """\
+                 datasource_list: [ Azure, Openstack, NoCloud, None ]
+                 datasource:
+diff --git a/tools/ds-identify b/tools/ds-identify
+index 7a537278..ec2cc18a 100755
+--- a/tools/ds-identify
++++ b/tools/ds-identify
+@@ -777,24 +777,21 @@ check_config() {
+     if [ "$1" = "$files" -a ! -f "$1" ]; then
+         return 1
+     fi
+-    local line="" ret="" found=0 found_fn="" oifs="$IFS" out=""
+-    out=$(grep "$key\"\?:" "$@" 2>/dev/null)
+-    IFS=${CR}
+-    for line in $out; do
+-        # drop '# comment'
+-        line=${line%%#*}
+-        # if more than one file was 'grep'ed, then grep will output filename:
+-        # but if only one file, line will not be prefixed.
+-        if [ $# -eq 1 ]; then
+-            found_fn="$1"
+-        else
+-            found_fn="${line%%:*}"
+-            line=${line#*:}
+-        fi
+-        ret=${line#*: };
+-        found=$((found+1))
++    local fname="" line="" ret="" found=0 found_fn=""
++    # shellcheck disable=2094
++    for fname in "$@"; do
++        [ -f "$fname" ] || continue
++        while read line; do
++            line=${line%%#*}
++            case "$line" in
++                $key:\ *|"${key}":)
++                    ret=${line#*:};
++                    ret=${ret# };
++                    found=$((found+1))
++                    found_fn="$fname";;
++            esac
++        done <"$fname"
+     done
+-    IFS="$oifs"
+     if [ $found -ne 0 ]; then
+         _RET="$ret"
+         _RET_fname="$found_fn"
+-- 
+2.39.3
+
