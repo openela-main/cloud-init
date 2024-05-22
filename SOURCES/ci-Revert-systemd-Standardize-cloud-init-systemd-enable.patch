@@ -1,0 +1,108 @@
+From 42aad98557bb62ae693f38e5f1e137bcc44f6046 Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Tue, 5 Mar 2024 12:42:26 +0530
+Subject: [PATCH] Revert "systemd: Standardize cloud-init systemd enablement
+ (#4399)"
+
+RH-Author: Ani Sinha <None>
+RH-MergeRequest: 124: Revert "systemd: Standardize cloud-init systemd enablement (#4399)"
+RH-Jira: RHEL-21290
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: Cathy Avery <cavery@redhat.com>
+RH-Commit: [1/1] 10da53e761e25ff7d254a4cfb8fb1fd18de8b4ed
+
+This reverts commit ec7dde8041d4023b09324e84abe37dc766ebbaf6.
+
+'ConditionEnvironment' clause is not available in RHEL 8.10 systemd and adding
+the feature would be complicated. Hence reverting the patch seems to be the
+right thing to do as it was a simple enhancement to make sure all distros use
+systemd's kernel commandline and file conditionals. We only care about RHEL so
+the change should not affect us.
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ systemd/cloud-config.service.tmpl     | 3 ++-
+ systemd/cloud-final.service.tmpl      | 3 ++-
+ systemd/cloud-init-local.service.tmpl | 3 ++-
+ systemd/cloud-init.service.tmpl       | 3 ++-
+ systemd/cloud-init.target             | 3 ---
+ 5 files changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/systemd/cloud-config.service.tmpl b/systemd/cloud-config.service.tmpl
+index 31d9d983..76e50ae1 100644
+--- a/systemd/cloud-config.service.tmpl
++++ b/systemd/cloud-config.service.tmpl
+@@ -5,9 +5,10 @@ After=network-online.target cloud-config.target
+ After=snapd.seeded.service
+ Before=systemd-user-sessions.service
+ Wants=network-online.target cloud-config.target
++{% if variant == "rhel" %}
+ ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ ConditionKernelCommandLine=!cloud-init=disabled
+-ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
++{% endif %}
+ 
+ [Service]
+ Type=oneshot
+diff --git a/systemd/cloud-final.service.tmpl b/systemd/cloud-final.service.tmpl
+index bcf8b009..85f423ac 100644
+--- a/systemd/cloud-final.service.tmpl
++++ b/systemd/cloud-final.service.tmpl
+@@ -7,9 +7,10 @@ After=multi-user.target
+ Before=apt-daily.service
+ {% endif %}
+ Wants=network-online.target cloud-config.service
++{% if variant == "rhel" %}
+ ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ ConditionKernelCommandLine=!cloud-init=disabled
+-ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
++{% endif %}
+ 
+ 
+ [Service]
+diff --git a/systemd/cloud-init-local.service.tmpl b/systemd/cloud-init-local.service.tmpl
+index 3a1ca7fa..6f3f9d8d 100644
+--- a/systemd/cloud-init-local.service.tmpl
++++ b/systemd/cloud-init-local.service.tmpl
+@@ -26,9 +26,10 @@ Before=sysinit.target
+ Conflicts=shutdown.target
+ {% endif %}
+ RequiresMountsFor=/var/lib/cloud
++{% if variant == "rhel" %}
+ ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ ConditionKernelCommandLine=!cloud-init=disabled
+-ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
++{% endif %}
+ 
+ [Service]
+ Type=oneshot
+diff --git a/systemd/cloud-init.service.tmpl b/systemd/cloud-init.service.tmpl
+index bf91164a..26d2e39c 100644
+--- a/systemd/cloud-init.service.tmpl
++++ b/systemd/cloud-init.service.tmpl
+@@ -38,9 +38,10 @@ Conflicts=shutdown.target
+ Before=shutdown.target
+ Conflicts=shutdown.target
+ {% endif %}
++{% if variant == "rhel" %}
+ ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ ConditionKernelCommandLine=!cloud-init=disabled
+-ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
++{% endif %}
+ 
+ [Service]
+ Type=oneshot
+diff --git a/systemd/cloud-init.target b/systemd/cloud-init.target
+index 30450f7f..760dfee5 100644
+--- a/systemd/cloud-init.target
++++ b/systemd/cloud-init.target
+@@ -10,6 +10,3 @@
+ [Unit]
+ Description=Cloud-init target
+ After=multi-user.target
+-ConditionPathExists=!/etc/cloud/cloud-init.disabled
+-ConditionKernelCommandLine=!cloud-init=disabled
+-ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
+-- 
+2.39.3
+

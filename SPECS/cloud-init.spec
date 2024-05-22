@@ -5,63 +5,42 @@
 %global debug_package %{nil}
 
 Name:                 cloud-init
-Version:              23.1.1
-Release:              11%{?dist}.1.0.1
+Version:              23.4
+Release:              7%{?dist}.0.1
 Summary:              Cloud instance init scripts
 
 Group:                System Environment/Base
 License:              GPLv3
-URL:                  http://launchpad.net/cloud-init
-Source0:              https://launchpad.net/cloud-init/trunk/%{version}/+download/%{name}-%{version}.tar.gz
+URL:                  https://github.com/canonical/cloud-init
+Source0:              https://github.com/canonical/cloud-init/archive/refs/tags/%{version}.tar.gz
 Source1:              cloud-init-tmpfiles.conf
 
-Patch0002:            0002-Do-not-write-NM_CONTROLLED-no-in-generated-interface.patch
-Patch0003:            0003-limit-permissions-on-def_log_file.patch
+Patch0003:            0003-Do-not-write-NM_CONTROLLED-no-in-generated-interface.patch
 Patch0004:            0004-include-NOZEROCONF-yes-in-etc-sysconfig-network.patch
-Patch0005:            0005-Manual-revert-Use-Network-Manager-and-Netplan-as-def.patch
-Patch0006:            0006-Revert-Add-native-NetworkManager-support-1224.patch
-Patch0007:            0007-settings.py-update-settings-for-rhel.patch
-# For bz#2182407 - cloud-init strips new line from "/etc/hostname" when processing "/var/lib/cloud/data/previous-hostname"
-Patch8:               ci-rhel-make-sure-previous-hostname-file-ends-with-a-ne.patch
-# For bz#2182947 - Request to backport "Don't change permissions of netrules target (#2076)"
-Patch9:               ci-Don-t-change-permissions-of-netrules-target-2076.patch
-# For bz#2190081 - CVE-2023-1786 cloud-init: sensitive data could be exposed in logs [rhel-8]
-Patch10:              ci-Make-user-vendor-data-sensitive-and-remove-log-permi.patch
-# For bz#2219528 - [RHEL8] Support configuring network by NM keyfiles
-Patch11:              ci-Revert-Manual-revert-Use-Network-Manager-and-Netplan.patch
-# For bz#2219528 - [RHEL8] Support configuring network by NM keyfiles
-Patch12:              ci-Revert-Revert-Add-native-NetworkManager-support-1224.patch
-# For bz#2219528 - [RHEL8] Support configuring network by NM keyfiles
-Patch13:              ci-nm-generate-ipv6-stateful-dhcp-config-at-par-with-sy.patch
-# For bz#2219528 - [RHEL8] Support configuring network by NM keyfiles
-Patch14:              ci-network_manager-add-a-method-for-ipv6-static-IP-conf.patch
-# For bz#2219528 - [RHEL8] Support configuring network by NM keyfiles
-Patch15:              ci-net-sysconfig-enable-sysconfig-renderer-if-network-m.patch
-# For bz#2219528 - [RHEL8] Support configuring network by NM keyfiles
-Patch16:              ci-network-manager-Set-higher-autoconnect-priority-for-.patch
-# For bz#2219528 - [RHEL8] Support configuring network by NM keyfiles
-Patch17:              ci-Set-default-renderer-as-sysconfig-for-centos-rhel-41.patch
-Patch19:              ci-tools-read-version-fix-the-tool-so-that-it-can-handl.patch
-Patch20:              ci-test-fixes-remove-NM_CONTROLLED-no-from-tests.patch
-Patch21:              ci-Enable-SUSE-based-distros-for-ca-handling-2036.patch
-Patch22:              ci-Handle-non-existent-ca-cert-config-situation-2073.patch
-Patch23:              ci-Revert-limit-permissions-on-def_log_file.patch
-Patch24:              ci-test-fixes-changes-to-apply-RHEL-specific-config-set.patch
-Patch25:              ci-cosmetic-fix-tox-formatting.patch
-# For bz#2222501 - Don't change log permissions if they are already more restrictive [rhel-8]
-Patch28:              ci-logging-keep-current-file-mode-of-log-file-if-its-st.patch
-# For bz#2223810 - [cloud-init] [RHEL8.9]There are warning logs if dev has more than one IPV6 address on ESXi
-Patch29:              ci-DS-VMware-modify-a-few-log-level-4284.patch
-# For bz#2229460 - [rhel-8.9] [RFE] Configure "ipv6.addr-gen-mode=eui64' as default in NetworkManager
-Patch30:              ci-NM-renderer-set-default-IPv6-addr-gen-mode-for-all-i.patch
-# For RHEL-16444 - [cloud-init][rhel-8.9.0.z] Backport the patch "rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg" to fix settings.py
-Patch31:              ci-rhel-cloud.cfg-remove-ssh_genkeytypes-in-settings.py.patch
-# For RHEL-18980 - [RHEL-8] NetworkManagerActivator brings up interface failed when using sysconfig renderer [rhel-8.9.0.z]
-Patch32:              ci-net-nm-check-for-presence-of-ifcfg-files-when-nm-con.patch
-# For RHEL-18980 - [RHEL-8] NetworkManagerActivator brings up interface failed when using sysconfig renderer [rhel-8.9.0.z]
-Patch33:              ci-tests-unittests-add-a-new-unit-test-for-network-mana.patch
-Patch34:              0001-Ensure-cloud-user-is-applied-to-OpenELA.patch
-Patch35:              0001-Remove-rh-subscription.patch
+Patch0005:            0005-settings.py-update-settings-for-rhel.patch
+Patch0013:            0013-rhel-cloud.cfg-remove-ssh_genkeytypes-in-settings.py.patch
+# For RHEL-7277 - [RFE] [Azure][RHEL8][Network][cloud-init] Can not acquire IPv6 address
+Patch14:              ci-net-network_manager-do-not-set-may-fail-to-False-for.patch
+# For RHEL-7277 - [RFE] [Azure][RHEL8][Network][cloud-init] Can not acquire IPv6 address
+Patch15:              ci-net-allow-dhcp6-configuration-from-generate_fallback.patch
+# For RHEL-17610 - [RHEL-8] NetworkManagerActivator brings up interface failed when using sysconfig renderer
+Patch16:              ci-net-nm-check-for-presence-of-ifcfg-files-when-nm-con.patch
+# For RHEL-21530 - [RHEL-8.10]subp.py[WARNING]: skipping /etc/cloud/clean.d/README when do cloud-init clean
+Patch17:              ci-fix-clean-stop-warning-when-running-clean-command-47.patch
+# For RHEL-21530 - [RHEL-8.10]subp.py[WARNING]: skipping /etc/cloud/clean.d/README when do cloud-init clean
+Patch18:              ci-test-jsonschema-Pin-jsonschema-version-4781.patch
+# For RHEL-22248 - [Azure][RHEL-8] cloud-init-23.4 cannot read "- Azure" datasource_list format
+Patch19:              ci-Revert-Use-grep-for-faster-parsing-of-cloud-config-i.patch
+# For RHEL-21323 - [rhel-8] The schema WARNING info for network-config.json is not suitable in cloud-init-23.4
+Patch20:              ci-ci-Pin-pytest-8.0.0.-4816.patch
+# For RHEL-21323 - [rhel-8] The schema WARNING info for network-config.json is not suitable in cloud-init-23.4
+Patch21:              ci-fix-Add-types-to-network-v1-schema-4841.patch
+# For RHEL-21290 - Unknown lvalue 'ConditionEnvironment' in section 'Unit' for /usr/lib/systemd/system/cloud-init.target,cloud-init.service
+Patch22:              ci-Revert-systemd-Standardize-cloud-init-systemd-enable.patch
+# For RHEL-28817 - [RHEL 8.10] cloud-init 23.4 returns 2 on recoverable errors instead of 0
+Patch23:              ci-Retain-exit-code-in-cloud-init-status-for-recoverabl.patch
+Patch24:              0001-Ensure-cloud-user-is-applied-to-OpenELA.patch
+Patch25:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -149,12 +128,9 @@ cp -p %{SOURCE1} $RPM_BUILD_ROOT/%{_tmpfilesdir}/%{name}.conf
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/rsyslog.d
 cp -p tools/21-cloudinit.conf $RPM_BUILD_ROOT/%{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
-# Make installed NetworkManager hook name less generic
-mv $RPM_BUILD_ROOT/etc/NetworkManager/dispatcher.d/hook-network-manager \
-   $RPM_BUILD_ROOT/etc/NetworkManager/dispatcher.d/cloud-init-azure-hook
 
 [ ! -d $RPM_BUILD_ROOT/usr/lib/systemd/system-generators ] && mkdir -p $RPM_BUILD_ROOT/usr/lib/systemd/system-generators
-python3 tools/render-cloudcfg --variant rhel systemd/cloud-init-generator.tmpl > $RPM_BUILD_ROOT/usr/lib/systemd/system-generators/cloud-init-generator
+python3 tools/render-template --variant rhel systemd/cloud-init-generator.tmpl > $RPM_BUILD_ROOT/usr/lib/systemd/system-generators/cloud-init-generator
 chmod 755 $RPM_BUILD_ROOT/usr/lib/systemd/system-generators/cloud-init-generator
 
 # installing man pages
@@ -230,16 +206,19 @@ fi
 %postun
 %systemd_postun cloud-config.service cloud-config.target cloud-final.service cloud-init.service cloud-init.target cloud-init-local.service
 
-if [ -f /etc/ssh/sshd_config.d/50-cloud-init.conf ] ; then
-    echo "/etc/ssh/sshd_config.d/50-cloud-init.conf not removed"
-fi
+if [ $1 -eq 0 ] ; then
+    # warn during package removal not upgrade
+    if [ -f /etc/ssh/sshd_config.d/50-cloud-init.conf ] ; then
+	echo "/etc/ssh/sshd_config.d/50-cloud-init.conf not removed"
+    fi
 
-if [ -f /etc/NetworkManager/conf.d/99-cloud-init.conf ] ; then
-    echo "/etc/NetworkManager/conf.d/99-cloud-init.conf not removed"
-fi
+    if [ -f /etc/NetworkManager/conf.d/99-cloud-init.conf ] ; then
+	echo "/etc/NetworkManager/conf.d/99-cloud-init.conf not removed"
+    fi
 
-if [ -f /etc/NetworkManager/conf.d/30-cloud-init-ip6-addr-gen-mode.conf ] ; then
-    echo "/etc/NetworkManager/conf.d/30-cloud-init-ip6-addr-gen-mode.conf not removed"
+    if [ -f /etc/NetworkManager/conf.d/30-cloud-init-ip6-addr-gen-mode.conf ] ; then
+	echo "/etc/NetworkManager/conf.d/30-cloud-init-ip6-addr-gen-mode.conf not removed"
+    fi
 fi
 
 %files
@@ -248,7 +227,6 @@ fi
 %dir               %{_sysconfdir}/cloud/cloud.cfg.d
 %config(noreplace) %{_sysconfdir}/cloud/cloud.cfg.d/*.cfg
 %doc               %{_sysconfdir}/cloud/cloud.cfg.d/README
-%doc               %{_sysconfdir}/cloud/clean.d/README
 %dir               %{_sysconfdir}/cloud/templates
 %config(noreplace) %{_sysconfdir}/cloud/templates/*
 %{_unitdir}/cloud-config.service
@@ -267,8 +245,6 @@ fi
 %{_mandir}/man1/*
 %dir %verify(not mode) /run/cloud-init
 %dir /var/lib/cloud
-/etc/NetworkManager/dispatcher.d/cloud-init-azure-hook
-/etc/dhcp/dhclient-exit-hooks.d/hook-dhclient
 %{_udevrulesdir}/66-azure-ephemeral.rules
 %{_datadir}/bash-completion/completions/cloud-init
 %{_bindir}/cloud-id
@@ -280,19 +256,61 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue Mar 05 2024 Release Engineering <releng@openela.org> - 23.1.1.0.1
+* Wed May 22 2024 Release Engineering <releng@openela.org> - 23.4.0.1
 - Apply OpenELA fixes
 
-* Wed Dec 13 2023 Jon Maloy <jmaloy@redhat.com> - 23.1.1-11.el8_9.1
-- ci-net-nm-check-for-presence-of-ifcfg-files-when-nm-con.patch [RHEL-18980]
-- ci-tests-unittests-add-a-new-unit-test-for-network-mana.patch [RHEL-18980]
-- Resolves: RHEL-18980
-  ([RHEL-8] NetworkManagerActivator brings up interface failed when using sysconfig renderer [rhel-8.9.0.z])
+* Thu Mar 14 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7
+- ci-Retain-exit-code-in-cloud-init-status-for-recoverabl.patch [RHEL-28817]
+- Resolves: RHEL-28817
+  ([RHEL 8.10] cloud-init 23.4 returns 2 on recoverable errors instead of 0)
 
-* Thu Nov 23 2023 Camilla Conte <cconte@redhat.com> - 23.1.1-10.el8_9.1
-- ci-rhel-cloud.cfg-remove-ssh_genkeytypes-in-settings.py.patch [RHEL-16444]
-- Resolves: RHEL-16444
-  ([cloud-init][rhel-8.9.0.z] Backport the patch "rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg" to fix settings.py)
+* Mon Mar 11 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-6
+- ci-Revert-systemd-Standardize-cloud-init-systemd-enable.patch [RHEL-21290]
+- Resolves: RHEL-21290
+  (Unknown lvalue 'ConditionEnvironment' in section 'Unit' for /usr/lib/systemd/system/cloud-init.target,cloud-init.service)
+
+* Mon Feb 26 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-5
+- ci-ci-Pin-pytest-8.0.0.-4816.patch [RHEL-21323]
+- ci-fix-Add-types-to-network-v1-schema-4841.patch [RHEL-21323]
+- Resolves: RHEL-21323
+  ([rhel-8] The schema WARNING info for network-config.json is not suitable in cloud-init-23.4)
+
+* Fri Feb 02 2024 Jon Maloy <jmaloy@redhat.com> - 23.4-4
+- ci-Revert-Use-grep-for-faster-parsing-of-cloud-config-i.patch [RHEL-22248]
+- Resolves: RHEL-22248
+  ([Azure][RHEL-8] cloud-init-23.4 cannot read "- Azure" datasource_list format)
+
+* Fri Feb 02 2024 Jon Maloy <jmaloy@redhat.com> - 23.4-3
+- ci-fix-clean-stop-warning-when-running-clean-command-47.patch [RHEL-21530]
+- ci-test-jsonschema-Pin-jsonschema-version-4781.patch [RHEL-21530]
+- Resolves: RHEL-21530
+  ([RHEL-8.10]subp.py[WARNING]: skipping /etc/cloud/clean.d/README when do cloud-init clean)
+
+* Tue Jan 16 2024 Jon Maloy <jmaloy@redhat.com> - 23.4-2
+- ci-net-network_manager-do-not-set-may-fail-to-False-for.patch [RHEL-7277]
+- ci-net-allow-dhcp6-configuration-from-generate_fallback.patch [RHEL-7277]
+- ci-net-nm-check-for-presence-of-ifcfg-files-when-nm-con.patch [RHEL-17610]
+- Resolves: RHEL-7277
+  ([RFE] [Azure][RHEL8][Network][cloud-init] Can not acquire IPv6 address)
+- Resolves: RHEL-17610
+  ([RHEL-8] NetworkManagerActivator brings up interface failed when using sysconfig renderer)
+
+* Mon Jan 8 2024 Jon Maloy <jmaloy@redhat.com> - 23.4-1
+- Rebase to 23.4.1 [RHEL-18314]
+- Resolves: RHEL-18314
+  ([RHEL-8]Rebase cloud-init to 23.4)
+
+* Thu Nov 23 2023 Camilla Conte <cconte@redhat.com> - 23.1.1-12
+- ci-rhel-cloud.cfg-remove-ssh_genkeytypes-in-settings.py.patch [RHEL-16572]
+- Resolves: RHEL-16572
+  ([cloud-init][rhel-8] Backport the patch "rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg" to fix settings.py)
+
+* Mon Sep 18 2023 Camilla Conte <cconte@redhat.com> - 23.1.1-11
+- ci-net-fix-ipv6_dhcpv6_stateful-stateless-slaac-configu.patch [bz#2046491]
+- Resolves: bz#2046491
+  (cloud-init enable both DHCPv4 and DHCPv6 when network type is ipv6_dhcpv6-stateful/ipv6_dhcpv6-stateless)
+- Resolves: RHEL-2325
+  ([RHEL8.9][cloud-init] Not inform user during upgrade that cloud-init generated config files are left )
 
 * Fri Aug 25 2023 Camilla Conte <cconte@redhat.com> - 23.1.1-10
 - Resolves: bz#2233047
@@ -324,7 +342,7 @@ fi
 - Resolves: bz#2219528
   ([RHEL8] Support configuring network by NM keyfiles)
 
-* Tue Jul 4 2023 Camilla Conte <cconte@redhat.com> - 23.1.1-5
+* Thu Jun 29 2023 Jon Maloy <jmaloy@redhat.com> - 23.1.1-4
 - ci-Add-warning-during-upgrade-from-an-old-version-with-.patch [bz#2210012]
 - Resolves: bz#2210012
   ([cloud-init] System didn't generate ssh host keys and lost ssh connection after cloud-init removed them with updated cloud-init package.)

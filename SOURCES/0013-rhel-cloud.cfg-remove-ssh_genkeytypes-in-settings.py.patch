@@ -1,0 +1,98 @@
+From 77585bbc6d01399ff88865b55dfb7a47b8640271 Mon Sep 17 00:00:00 2001
+From: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Date: Thu, 20 May 2021 08:53:55 +0200
+Subject: rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in
+ cloud.cfg
+
+RH-Author: Ani Sinha <None>
+RH-MergeRequest: 113: rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg
+RH-Jira: RHEL-16572
+RH-Acked-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Commit: [1/1] f506bf58dc5458f50624342ec33bcd390aa0b719 (anisinha/rhel-cloud-init)
+
+RH-Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-MergeRequest: 10: rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg
+RH-Commit: [1/1] 6da989423b9b6e017afbac2f1af3649b0487310f
+RH-Bugzilla: 1957532
+RH-Acked-by: Eduardo Otubo <otubo@redhat.com>
+RH-Acked-by: Cathy Avery <cavery@redhat.com>
+RH-Acked-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+RH-Acked-by: Mohamed Gamal Morsy <mmorsy@redhat.com>
+
+Currently genkeytypes in cloud.cfg is set to None, so together with
+ssh_deletekeys=1 cloudinit on first boot it will just delete the existing
+keys and not generate new ones.
+
+Just removing that property in cloud.cfg is not enough, because
+settings.py provides another empty default value that will be used
+instead, resulting to no key generated even when the property is not defined.
+
+Removing genkeytypes also in settings.py will default to GENERATE_KEY_NAMES,
+but since we want only 'rsa', 'ecdsa' and 'ed25519', add back genkeytypes in
+cloud.cfg with the above defaults.
+
+Also remove ssh_deletekeys in settings.py as we always need
+to 1 (and it also defaults to 1).
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+(cherry picked from commit b545a0cbabe8924d048b7172b30e7aad59ed32d5)
+(cherry picked from commit 855dec5dcc0892c0f7cedf06b025a794769a2a8d)
+
+Fix unit test breakage
+
+Fix unit test breakage due to the downstream change
+5d6674508c6478fa2c ("rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg")
+
+X-downstream-only: true
+Fixes: 5d6674508c6478fa2c ("rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg")
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+
+Squashed:
+    commit 1afec9e6008db187d1b675e4473d5a2bf0b3c36b
+    Author: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+    Date:   Thu May 20 08:53:55 2021 +0200
+    Subject: [PATCH 49/51] rhel/cloud.cfg: remove ssh_genkeytypes in settings.py
+             and set in cloud.cfg
+
+    From fe6fb1843fe8df75899fe189b9e5f8ce3cd75be1 Mon Sep 17 00:00:00 2001
+    From: Ani Sinha <anisinha@redhat.com>
+    Date: Fri, 8 Dec 2023 12:50:15 +0530
+    Subject: [PATCH 51/51] Fix unit test breakage
+
+Signed-off-by: Cathy Avery <cavery@redhat.com>
+---
+ cloudinit/settings.py            | 2 --
+ tests/unittests/cmd/test_main.py | 2 --
+ 2 files changed, 4 deletions(-)
+
+diff --git a/cloudinit/settings.py b/cloudinit/settings.py
+index 87829ff0..3a581e5b 100644
+--- a/cloudinit/settings.py
++++ b/cloudinit/settings.py
+@@ -56,8 +56,6 @@ CFG_BUILTIN = {
+     "log_cfgs": [],
+     "syslog_fix_perms": [],
+     "mount_default_fields": [None, None, "auto", "defaults,nofail", "0", "2"],
+-    "ssh_deletekeys": False,
+-    "ssh_genkeytypes": [],
+     "system_info": {
+         "paths": {
+             "cloud_dir": "/var/lib/cloud",
+diff --git a/tests/unittests/cmd/test_main.py b/tests/unittests/cmd/test_main.py
+index c8c2ae81..19d26ebe 100644
+--- a/tests/unittests/cmd/test_main.py
++++ b/tests/unittests/cmd/test_main.py
+@@ -122,8 +122,6 @@ class TestMain(FilesystemMockingTestCase):
+                     "vendor_data": {"enabled": True, "prefix": []},
+                     "vendor_data2": {"enabled": True, "prefix": []},
+                     "syslog_fix_perms": [],
+-                    "ssh_deletekeys": False,
+-                    "ssh_genkeytypes": [],
+                     "mount_default_fields": [
+                         None,
+                         None,
+-- 
+2.41.0
+

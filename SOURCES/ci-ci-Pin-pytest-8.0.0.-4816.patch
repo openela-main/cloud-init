@@ -1,0 +1,51 @@
+From 3f138f68a36224dcefd5c16befbc00486b09c8ec Mon Sep 17 00:00:00 2001
+From: Brett Holman <brett.holman@canonical.com>
+Date: Mon, 29 Jan 2024 12:03:36 -0700
+Subject: [PATCH 1/2] ci: Pin pytest<8.0.0. (#4816)
+
+RH-Author: Cathy Avery <cavery@redhat.com>
+RH-MergeRequest: 123: fix: Add types to network v1 schema (#4841)
+RH-Jira: RHEL-21323
+RH-Acked-by: Ani Sinha <None>
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Commit: [1/2] db0348f73893a7bb536e4a3562dc7ef33b2590ad
+
+The latest pytest release broke some tests in non-obvious ways. Pin
+the version for now so that CI passes.
+
+(cherry picked from commit 7c96c9cd9318e816ce4564b58a2c98271363c447)
+Signed-off-by: Cathy Avery <cavery@redhat.com>
+---
+ integration-requirements.txt | 2 +-
+ test-requirements.txt        | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/integration-requirements.txt b/integration-requirements.txt
+index 1f8b54a5..c0792d63 100644
+--- a/integration-requirements.txt
++++ b/integration-requirements.txt
+@@ -7,7 +7,7 @@ pycloudlib>=5.10.0,<1!6
+ # test/unittests/conftest.py to be loaded by our integration-tests tox env
+ # resulting in an unmet dependency issue:
+ # https://github.com/pytest-dev/pytest/issues/11104
+-pytest!=7.3.2
++pytest!=7.3.2,<8.0.0
+ 
+ packaging
+ passlib
+diff --git a/test-requirements.txt b/test-requirements.txt
+index 46a98b4c..3d2480fd 100644
+--- a/test-requirements.txt
++++ b/test-requirements.txt
+@@ -4,7 +4,7 @@
+ # test/unittests/conftest.py to be loaded by our integration-tests tox env
+ # resulting in an unmet dependency issue:
+ # https://github.com/pytest-dev/pytest/issues/11104
+-pytest!=7.3.2
++pytest!=7.3.2,<8.0.0
+ 
+ pytest-cov
+ pytest-mock
+-- 
+2.39.3
+
