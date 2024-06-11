@@ -1,0 +1,66 @@
+From cf8684342911aa56a362b2e8c3c222e2a6438877 Mon Sep 17 00:00:00 2001
+From: James Falcon <james.falcon@canonical.com>
+Date: Tue, 26 Mar 2024 15:55:50 -0500
+Subject: [PATCH] fix: Always use single datasource if specified (#5098)
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 134: fix: Always use single datasource if specified (#5098)
+RH-Jira: RHEL-36700
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: Cathy Avery <cavery@redhat.com>
+RH-Commit: [1/1] 03e1349ae95ae68efef34c667062e061c77935b6
+
+This change may require a user to add `None` to the `datasource_list`
+defined in `/etc/cloud/cloud.cfg[.d]` if they have a customized
+datasource_list and want the DataSourceNone fallback behavior.
+
+ds-identify would automatically append "None" to the datasource_list
+if a single entry was provided in /etc/cloud/cloud.cfg[.d].
+This wasn't a problem in the past as the python code would detect
+a single datasource along with None as an indication to automatically
+use that datasource. Since the python code no longer does that,
+we should ensure that one specified datasource results in one specified
+datasource after ds-identify has run.
+
+Fixes GH-5091
+
+(cherry picked from commit cdbbd17ae400e432d13f674c18a6f5c873fa328b)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ tests/unittests/test_ds_identify.py | 2 +-
+ tools/ds-identify                   | 6 +++++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/tests/unittests/test_ds_identify.py b/tests/unittests/test_ds_identify.py
+index ba0bf779a..acbf3f032 100644
+--- a/tests/unittests/test_ds_identify.py
++++ b/tests/unittests/test_ds_identify.py
+@@ -522,7 +522,7 @@ class TestDsIdentify(DsIdentifyBase):
+         mydata = copy.deepcopy(VALID_CFG["Ec2-hvm"])
+         cfgpath = "etc/cloud/cloud.cfg.d/myds.cfg"
+         mydata["files"][cfgpath] = 'datasource_list: ["NoCloud"]\n'
+-        self._check_via_dict(mydata, rc=RC_FOUND, dslist=["NoCloud", DS_NONE])
++        self._check_via_dict(mydata, rc=RC_FOUND, dslist=["NoCloud"])
+ 
+     def test_configured_list_with_none(self):
+         """When datasource_list already contains None, None is not added.
+diff --git a/tools/ds-identify b/tools/ds-identify
+index ec2cc18ab..6e49ded36 100755
+--- a/tools/ds-identify
++++ b/tools/ds-identify
+@@ -1865,7 +1865,11 @@ _main() {
+     # if there is only a single entry in $DI_DSLIST
+     if [ $# -eq 1 ] || [ $# -eq 2 -a "$2" = "None" ] ; then
+         debug 1 "single entry in datasource_list ($DI_DSLIST) use that."
+-        found "$@"
++        if [ $# -eq 1 ]; then
++            write_result "datasource_list: [ $1 ]"
++        else
++            found "$@"
++        fi
+         return
+     fi
+ 
+-- 
+2.39.3
+

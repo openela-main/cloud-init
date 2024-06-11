@@ -1,0 +1,42 @@
+From 4d68dcd0a90fcd817ae981b492101387e5bddf5c Mon Sep 17 00:00:00 2001
+From: James Falcon <james.falcon@canonical.com>
+Date: Tue, 19 Mar 2024 14:24:11 -0500
+Subject: [PATCH 3/3] fix: Undeprecate 'network' in schema route definition
+ (#5072)
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 130: fix: Undeprecate 'network' in schema route definition (#5072)
+RH-Jira: RHEL-29718
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: Cathy Avery <cavery@redhat.com>
+RH-Commit: [1/1] 31db6404fc84dbb9b62e3df116f4ca42be95d4c0
+
+It is passed through to our v1 schema from OpenStack network_data.json
+
+Fixes GH-5051
+
+(cherry picked from commit ff40d1af8a6de3ee27937382ec4ceea931d80a88)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/config/schemas/schema-network-config-v1.json | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/cloudinit/config/schemas/schema-network-config-v1.json b/cloudinit/config/schemas/schema-network-config-v1.json
+index 56dc27c90..64c492a47 100644
+--- a/cloudinit/config/schemas/schema-network-config-v1.json
++++ b/cloudinit/config/schemas/schema-network-config-v1.json
+@@ -445,10 +445,7 @@
+         },
+         "network": {
+           "type": "string",
+-          "description": "IPv4 network address with CIDR netmask notation or IPv6 with prefix length. Alias for ``destination`` and only read when ``destination`` key is absent.",
+-          "deprecated": true,
+-          "deprecated_version": "23.3",
+-          "deprecated_description": "Use ``destination`` instead."
++          "description": "IPv4 network address with CIDR netmask notation or IPv6 with prefix length. Alias for ``destination`` and only read when ``destination`` key is absent. This exists for OpenStack support. OpenStack route definitions are passed through to v1 config and OpenStack's ``network_data.json`` uses ``network`` instead of ``destination``."
+         },
+         "destination": {
+           "type": "string",
+-- 
+2.39.3
+
