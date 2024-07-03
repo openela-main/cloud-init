@@ -1,0 +1,207 @@
+From 1024e43b58ce84bb6c6d8bd89785704e04560b2a Mon Sep 17 00:00:00 2001
+From: Florian Apolloner <florian@apolloner.eu>
+Date: Fri, 5 Jan 2024 19:07:12 +0100
+Subject: [PATCH 2/3] feat: apply global DNS to interfaces in network-manager 
+ (#4723)
+
+RH-Author: Cathy Avery <cavery@redhat.com>
+RH-MergeRequest: 128: Fixes for cloud-init fails to configure DNS/search domains for network-config v1
+RH-Jira: RHEL-27134
+RH-Acked-by: Ani Sinha <anisinha@redhat.com>
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Commit: [2/2] 73d27116735e853fbaa38942390721dd78bc6241
+
+Sometimes DNS settings in cloud configs are specified globally and
+not per interface / subnet. This results in a configuration without
+proper nameservers. This was fixed for netplan in d29eeccd and is
+now also applied to the network-manager renderer.
+
+Co-authored-by: James Falcon <james.falcon@canonical.com>
+(cherry picked from commit 0d787d0a262f70ff848b315633742aa8fc45a1de)
+Signed-off-by: Cathy Avery <cavery@redhat.com>
+---
+ cloudinit/net/network_manager.py          | 52 ++++++++++++++---------
+ tests/unittests/net/test_net_rendering.py |  3 ++
+ tests/unittests/test_net.py               | 11 +++++
+ tools/.github-cla-signers                 |  1 +
+ 4 files changed, 47 insertions(+), 20 deletions(-)
+
+diff --git a/cloudinit/net/network_manager.py b/cloudinit/net/network_manager.py
+index bd6e6d75..0ba210b7 100644
+--- a/cloudinit/net/network_manager.py
++++ b/cloudinit/net/network_manager.py
+@@ -246,7 +246,7 @@ class NMConnection:
+         """
+         return addr.replace("-", ":").upper()
+ 
+-    def render_interface(self, iface, renderer):
++    def render_interface(self, iface, network_state, renderer):
+         """
+         Integrate information from network state interface information
+         into the connection. Most of the work is done here.
+@@ -311,7 +311,6 @@ class NMConnection:
+         found_dns_search = []
+ 
+         # Deal with Layer 3 configuration
+-        use_top_level_dns = "dns" in iface
+         for subnet in iface["subnets"]:
+             family = "ipv6" if subnet_is_ipv6(subnet) else "ipv4"
+ 
+@@ -322,26 +321,39 @@ class NMConnection:
+                 self.config[family]["gateway"] = subnet["gateway"]
+             for route in subnet["routes"]:
+                 self._add_route(route)
+-            if not use_top_level_dns and "dns_nameservers" in subnet:
+-                for nameserver in subnet["dns_nameservers"]:
+-                    found_nameservers.append(nameserver)
+-            if not use_top_level_dns and "dns_search" in subnet:
+-                found_dns_search.append(subnet["dns_search"])
++            # Add subnet-level DNS
++            if "dns_nameservers" in subnet:
++                found_nameservers.extend(subnet["dns_nameservers"])
++            if "dns_search" in subnet:
++                found_dns_search.extend(subnet["dns_search"])
+             if family == "ipv4" and "mtu" in subnet:
+                 ipv4_mtu = subnet["mtu"]
+ 
+-        # Now add our DNS search domains. We add them later because we
+-        # only want them if an IP family has already been defined
+-        if use_top_level_dns:
+-            for nameserver in iface["dns"]["nameservers"]:
+-                self._add_nameserver(nameserver)
+-            if iface["dns"]["search"]:
+-                self._add_dns_search(iface["dns"]["search"])
+-        else:
+-            for nameserver in found_nameservers:
+-                self._add_nameserver(nameserver)
+-            for dns_search in found_dns_search:
+-                self._add_dns_search(dns_search)
++        # Add interface-level DNS
++        if "dns" in iface:
++            found_nameservers += [
++                dns
++                for dns in iface["dns"]["nameservers"]
++                if dns not in found_nameservers
++            ]
++            found_dns_search += [
++                search
++                for search in iface["dns"]["search"]
++                if search not in found_dns_search
++            ]
++
++        # We prefer any interface-specific DNS entries, but if we do not
++        # have any, add the global DNS to the connection
++        if not found_nameservers and network_state.dns_nameservers:
++            found_nameservers = network_state.dns_nameservers
++        if not found_dns_search and network_state.dns_searchdomains:
++            found_dns_search = network_state.dns_searchdomains
++
++        # Write out all DNS entries to the connection
++        for nameserver in found_nameservers:
++            self._add_nameserver(nameserver)
++        if found_dns_search:
++            self._add_dns_search(found_dns_search)
+ 
+         # we do not want to set may-fail to false for both ipv4 and ipv6 dhcp
+         # at the at the same time. This will make the network configuration
+@@ -457,7 +469,7 @@ class Renderer(renderer.Renderer):
+         # Now render the actual interface configuration
+         for iface in network_state.iter_interfaces():
+             conn = self.connections[iface["name"]]
+-            conn.render_interface(iface, self)
++            conn.render_interface(iface, network_state, self)
+ 
+         # And finally write the files
+         for con_id, conn in self.connections.items():
+diff --git a/tests/unittests/net/test_net_rendering.py b/tests/unittests/net/test_net_rendering.py
+index 06feab89..f340ffc1 100644
+--- a/tests/unittests/net/test_net_rendering.py
++++ b/tests/unittests/net/test_net_rendering.py
+@@ -88,6 +88,9 @@ def _check_network_manager(network_state: NetworkState, tmp_path: Path):
+     "test_name, renderers",
+     [("no_matching_mac_v2", Renderer.Netplan | Renderer.NetworkManager)],
+ )
++@pytest.mark.xfail(
++    reason="v2 interface-specific DNS errantly gets applied globally"
++)
+ def test_convert(test_name, renderers, tmp_path):
+     network_config = safeyaml.load(
+         Path(ARTIFACT_DIR, f"{test_name}.yaml").read_text()
+diff --git a/tests/unittests/test_net.py b/tests/unittests/test_net.py
+index 678ec39b..e010eb6b 100644
+--- a/tests/unittests/test_net.py
++++ b/tests/unittests/test_net.py
+@@ -645,6 +645,7 @@ method=manual
+ may-fail=false
+ address1=172.19.1.34/22
+ route1=0.0.0.0/0,172.19.3.254
++dns=172.19.0.12;
+ 
+ """.lstrip(),
+             ),
+@@ -2769,6 +2770,8 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 [ipv4]
+                 method=auto
+                 may-fail=false
++                dns=8.8.8.8;4.4.4.4;8.8.4.4;
++                dns-search=barley.maas;wark.maas;foobar.maas;
+ 
+                 """
+             ),
+@@ -2794,6 +2797,8 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 method=manual
+                 may-fail=false
+                 address1=192.168.200.7/24
++                dns=8.8.8.8;4.4.4.4;8.8.4.4;
++                dns-search=barley.maas;wark.maas;foobar.maas;
+ 
+                 """
+             ),
+@@ -2818,6 +2823,8 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 [ipv4]
+                 method=auto
+                 may-fail=false
++                dns=8.8.8.8;4.4.4.4;8.8.4.4;
++                dns-search=barley.maas;wark.maas;foobar.maas;
+ 
+                 """
+             ),
+@@ -2902,12 +2909,15 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 method=manual
+                 may-fail=false
+                 address1=192.168.14.2/24
++                dns=8.8.8.8;4.4.4.4;8.8.4.4;
++                dns-search=barley.maas;wark.maas;foobar.maas;
+ 
+                 [ipv6]
+                 method=manual
+                 may-fail=false
+                 address1=2001:1::1/64
+                 route1=::/0,2001:4800:78ff:1b::1
++                dns-search=barley.maas;wark.maas;foobar.maas;
+ 
+                 """
+             ),
+@@ -2962,6 +2972,7 @@ pre-down route del -net 10.0.0.0/8 gw 11.0.0.1 metric 3 || true
+                 [ipv6]
+                 method=auto
+                 may-fail=false
++                dns-search=barley.maas;wark.maas;foobar.maas;
+ 
+                 """
+             ),
+diff --git a/tools/.github-cla-signers b/tools/.github-cla-signers
+index dbdb9cfa..f4da0989 100644
+--- a/tools/.github-cla-signers
++++ b/tools/.github-cla-signers
+@@ -13,6 +13,7 @@ andrewbogott
+ andrewlukoshko
+ ani-sinha
+ antonyc
++apollo13
+ aswinrajamannar
+ bdrung
+ beantaxi
+-- 
+2.41.0
+

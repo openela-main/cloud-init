@@ -6,7 +6,7 @@
 
 Name:                 cloud-init
 Version:              23.4
-Release:              7%{?dist}.0.1
+Release:              7%{?dist}.3.0.1
 Summary:              Cloud instance init scripts
 
 Group:                System Environment/Base
@@ -39,8 +39,18 @@ Patch21:              ci-fix-Add-types-to-network-v1-schema-4841.patch
 Patch22:              ci-Revert-systemd-Standardize-cloud-init-systemd-enable.patch
 # For RHEL-28817 - [RHEL 8.10] cloud-init 23.4 returns 2 on recoverable errors instead of 0
 Patch23:              ci-Retain-exit-code-in-cloud-init-status-for-recoverabl.patch
-Patch24:              0001-Ensure-cloud-user-is-applied-to-OpenELA.patch
-Patch25:              0001-Remove-rh-subscription.patch
+# For RHEL-27134 - [rhel-8]cloud-init fails to configure DNS/search domains for network-config v1
+Patch24:              ci-fix-Correct-v2-NetworkManager-route-rendering-4637.patch
+# For RHEL-27134 - [rhel-8]cloud-init fails to configure DNS/search domains for network-config v1
+Patch25:              ci-feat-apply-global-DNS-to-interfaces-in-network-manag.patch
+# For RHEL-29710 - Suggest to backport patch ff40d1a to undeprecate 'network' in schema route definition [rhel-8.10.0.z]
+Patch26:              ci-fix-Undeprecate-network-in-schema-route-definition-5.patch
+# For RHEL-32841 - [cloud-init][ESXi]VMware datasource resets on every boot causing it to lose network configuration [rhel-8.10.z]
+Patch27:              ci-fix-Fall-back-to-cached-local-ds-if-no-valid-ds-foun.patch
+# For RHEL-36701 - DataSourceNoCloudNet not configurable via config files [rhel-8.10.z]
+Patch28:              ci-fix-Always-use-single-datasource-if-specified-5098.patch
+Patch29:              0001-Ensure-cloud-user-is-applied-to-OpenELA.patch
+Patch30:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -256,8 +266,27 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Wed May 22 2024 Release Engineering <releng@openela.org> - 23.4.0.1
+* Wed Jul 03 2024 Release Engineering <releng@openela.org> - 23.4.0.1
 - Apply OpenELA fixes
+
+* Wed May 29 2024 Jon Maloy <jmaloy@redhat.com> - 23.4-7.el8.3
+- ci-fix-Always-use-single-datasource-if-specified-5098.patch [RHEL-36701]
+- Resolves: RHEL-36701
+  (DataSourceNoCloudNet not configurable via config files [rhel-8.10.z])
+
+* Tue Apr 23 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el8_10.2
+- ci-fix-Fall-back-to-cached-local-ds-if-no-valid-ds-foun.patch [RHEL-32841]
+- Resolves: RHEL-32841
+  ([cloud-init][ESXi]VMware datasource resets on every boot causing it to lose network configuration [rhel-8.10.z])
+
+* Fri Apr 05 2024 Jon Maloy <jmaloy@redhat.com> - 23.4-7.el8.1
+- ci-fix-Correct-v2-NetworkManager-route-rendering-4637.patch [RHEL-27134]
+- ci-feat-apply-global-DNS-to-interfaces-in-network-manag.patch [RHEL-27134]
+- ci-fix-Undeprecate-network-in-schema-route-definition-5.patch [RHEL-29710]
+- Resolves: RHEL-27134
+  ([rhel-8]cloud-init fails to configure DNS/search domains for network-config v1)
+- Resolves: RHEL-29710
+  (Suggest to backport patch ff40d1a to undeprecate 'network' in schema route definition [rhel-8.10.0.z])
 
 * Thu Mar 14 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7
 - ci-Retain-exit-code-in-cloud-init-status-for-recoverabl.patch [RHEL-28817]
