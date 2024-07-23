@@ -1,6 +1,6 @@
 Name:                 cloud-init
 Version:              23.4
-Release:              7%{?dist}.3.0.2
+Release:              7%{?dist}.5.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -33,8 +33,12 @@ Patch15:              ci-fix-Undeprecate-network-in-schema-route-definition.patc
 Patch16:              ci-fix-Fall-back-to-cached-local-ds-if-no-valid-ds-foun.patch
 # For RHEL-36700 - DataSourceNoCloudNet not configurable via config files [rhel-9.4.z]
 Patch17:              ci-fix-Always-use-single-datasource-if-specified-5098.patch
-Patch18:              future-backport.patch
-Patch19:              0001-Remove-rh-subscription.patch
+# For RHEL-40419 - [Cloud-init] CloudstackDataSource cannot work with NetworkManager [rhel-9.4.z]
+Patch18:              ci-fix-cloudstack-Use-parsed-lease-file-for-virtual-rou.patch
+# For RHEL-46012 - [RHEL-9] cloud-init fails to configure DNS search domains [rhel-9.4.z]
+Patch19:              ci-feat-sysconfig-Add-DNS-from-interface-config-to-reso.patch
+Patch20:              future-backport.patch
+Patch21:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -251,8 +255,18 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue Jun 11 2024 Release Engineering <releng@openela.org> - 23.4.0.2
+* Tue Jul 23 2024 Release Engineering <releng@openela.org> - 23.4.0.2
 - Apply OpenELA fixes
+
+* Mon Jul 08 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el9_4.5
+- ci-feat-sysconfig-Add-DNS-from-interface-config-to-reso.patch [RHEL-46012]
+- Resolves: RHEL-46012
+  ([RHEL-9] cloud-init fails to configure DNS search domains [rhel-9.4.z])
+
+* Mon Jun 17 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el9_4.4
+- ci-fix-cloudstack-Use-parsed-lease-file-for-virtual-rou.patch [RHEL-40419]
+- Resolves: RHEL-40419
+  ([Cloud-init] CloudstackDataSource cannot work with NetworkManager [rhel-9.4.z])
 
 * Mon May 20 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el9_4.3
 - ci-fix-Always-use-single-datasource-if-specified-5098.patch [RHEL-36700]

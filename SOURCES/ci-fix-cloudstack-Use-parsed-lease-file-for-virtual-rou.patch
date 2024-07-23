@@ -1,0 +1,58 @@
+From 30563d06d405953a3d1f1155a4bf1140660d3b40 Mon Sep 17 00:00:00 2001
+From: Brett Holman <brett.holman@canonical.com>
+Date: Wed, 3 Jan 2024 09:11:40 -0700
+Subject: [PATCH] fix(cloudstack): Use parsed lease file for virtual router in
+ cloudstack
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 136: fix(cloudstack): Use parsed lease file for virtual router in cloudstack
+RH-Jira: RHEL-40419
+RH-Acked-by: Cathy Avery <cavery@redhat.com>
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Commit: [1/1] b24ddecac72488e784d2c59fff7b8f9ccee45181
+
+Fixes 5942f4023e2581a
+
+(cherry picked from commit cb36bf38b823f811a3e938ccffc03d7d13190095)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/sources/DataSourceCloudStack.py | 22 +++++++++++-----------
+ 1 file changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/cloudinit/sources/DataSourceCloudStack.py b/cloudinit/sources/DataSourceCloudStack.py
+index fd2482a3f..f752765d3 100644
+--- a/cloudinit/sources/DataSourceCloudStack.py
++++ b/cloudinit/sources/DataSourceCloudStack.py
+@@ -229,18 +229,18 @@ def get_vr_address():
+         )
+         return latest_address
+ 
+-    # Try dhcp lease files next...
++    # Try dhcp lease files next
+     lease_file = dhcp.IscDhclient.get_latest_lease()
+-    if not lease_file:
+-        LOG.debug("No lease file found, using default gateway")
+-        return get_default_gateway()
+-
+-    lease_file = dhcp.IscDhclient.parse_dhcp_server_from_lease_file(lease_file)
+-    if not latest_address:
+-        # No virtual router found, fallback on default gateway
+-        LOG.debug("No DHCP found, using default gateway")
+-        return get_default_gateway()
+-    return latest_address
++    if lease_file:
++        latest_address = dhcp.IscDhclient.parse_dhcp_server_from_lease_file(
++            lease_file
++        )
++        if latest_address:
++            return latest_address
++
++    # No virtual router found, fallback to default gateway
++    LOG.debug("No DHCP found, using default gateway")
++    return get_default_gateway()
+ 
+ 
+ # Used to match classes to dependencies
+-- 
+2.39.3
+
