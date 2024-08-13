@@ -6,7 +6,7 @@
 
 Name:                 cloud-init
 Version:              23.4
-Release:              7%{?dist}.3.0.1
+Release:              7%{?dist}.7.0.1
 Summary:              Cloud instance init scripts
 
 Group:                System Environment/Base
@@ -49,8 +49,14 @@ Patch26:              ci-fix-Undeprecate-network-in-schema-route-definition-5.pa
 Patch27:              ci-fix-Fall-back-to-cached-local-ds-if-no-valid-ds-foun.patch
 # For RHEL-36701 - DataSourceNoCloudNet not configurable via config files [rhel-8.10.z]
 Patch28:              ci-fix-Always-use-single-datasource-if-specified-5098.patch
-Patch29:              0001-Ensure-cloud-user-is-applied-to-OpenELA.patch
-Patch30:              0001-Remove-rh-subscription.patch
+# For RHEL-40418 - [Cloud-init] CloudstackDataSource cannot work with NetworkManager [rhel-8.10.z]
+Patch29:              ci-fix-cloudstack-Use-parsed-lease-file-for-virtual-rou.patch
+# For RHEL-46013 - [RHEL-8] cloud-init fails to configure DNS search domains [rhel-8.10.z]
+Patch30:              ci-feat-sysconfig-Add-DNS-from-interface-config-to-reso.patch
+# For RHEL-49742 - [Cloud-init] [RHEL-8.10] Password reset feature broken with CloudstackDataSource
+Patch31:              ci-fix-Clean-cache-if-no-datasource-fallback-5499.patch
+Patch32:              0001-Ensure-cloud-user-is-applied-to-OpenELA.patch
+Patch33:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -266,8 +272,23 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Wed Jul 03 2024 Release Engineering <releng@openela.org> - 23.4.0.1
+* Tue Aug 13 2024 Release Engineering <releng@openela.org> - 23.4.0.1
 - Apply OpenELA fixes
+
+* Thu Jul 25 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el8_10.7
+- ci-fix-Clean-cache-if-no-datasource-fallback-5499.patch [RHEL-49742]
+- Resolves: RHEL-49742
+  ([Cloud-init] [RHEL-8.10] Password reset feature broken with CloudstackDataSource)
+
+* Tue Jul 09 2024 Jon Maloy <jmaloy@redhat.com> - 23.4-7.el8_10.6
+- ci-feat-sysconfig-Add-DNS-from-interface-config-to-reso.patch [RHEL-46013]
+- Resolves: RHEL-46013
+  ([RHEL-8] cloud-init fails to configure DNS search domains [rhel-8.10.z])
+
+* Tue Jul 09 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el8_10.5
+- ci-fix-cloudstack-Use-parsed-lease-file-for-virtual-rou.patch [RHEL-40418]
+- Resolves: RHEL-40418
+  ([Cloud-init] CloudstackDataSource cannot work with NetworkManager [rhel-8.10.z])
 
 * Wed May 29 2024 Jon Maloy <jmaloy@redhat.com> - 23.4-7.el8.3
 - ci-fix-Always-use-single-datasource-if-specified-5098.patch [RHEL-36701]
