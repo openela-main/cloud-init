@@ -1,0 +1,247 @@
+From b03489391a39798934548720cc70cdc9e4ce94fb Mon Sep 17 00:00:00 2001
+From: James Falcon <james.falcon@canonical.com>
+Date: Thu, 18 Jul 2024 09:04:54 -0400
+Subject: [PATCH] fix: Clean cache if no datasource fallback (#5499)
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 142: fix: Clean cache if no datasource fallback (#5499)
+RH-Jira: RHEL-50562
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: xiachen <xiachen@redhat.com>
+RH-Commit: [1/1] 83f82f71ff9127f480a336775d0203ded6aa17bd
+
+9929a00 added the ability to used a cached datasource when none is
+found. This was supposed to be per-datasource, but the lack of cache
+cleaning got applied universally. This commit makes it so cache will be
+cleaned as it was before if fallback isn't implemented in datasource.
+
+Fixes GH-5486
+
+(cherry picked from commit 550c685c98551f65c30832b186fe091721b48477)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/stages.py                           |   1 +
+ .../assets/DataSourceNoCacheNetworkOnly.py    |  23 ++++
+ .../assets/DataSourceNoCacheWithFallback.py   |  29 +++++
+ .../datasources/test_caching.py               | 115 ++++++++++++++++++
+ tests/integration_tests/instances.py          |   4 +-
+ 5 files changed, 171 insertions(+), 1 deletion(-)
+ create mode 100644 tests/integration_tests/assets/DataSourceNoCacheNetworkOnly.py
+ create mode 100644 tests/integration_tests/assets/DataSourceNoCacheWithFallback.py
+ create mode 100644 tests/integration_tests/datasources/test_caching.py
+
+diff --git a/cloudinit/stages.py b/cloudinit/stages.py
+index 0b795624f..ace94c9aa 100644
+--- a/cloudinit/stages.py
++++ b/cloudinit/stages.py
+@@ -378,6 +378,7 @@ class Init:
+                         ds,
+                     )
+                 else:
++                    util.del_file(self.paths.instance_link)
+                     raise e
+         self.datasource = ds
+         # Ensure we adjust our path members datasource
+diff --git a/tests/integration_tests/assets/DataSourceNoCacheNetworkOnly.py b/tests/integration_tests/assets/DataSourceNoCacheNetworkOnly.py
+new file mode 100644
+index 000000000..54a7bab34
+--- /dev/null
++++ b/tests/integration_tests/assets/DataSourceNoCacheNetworkOnly.py
+@@ -0,0 +1,23 @@
++import logging
++
++from cloudinit import sources
++
++LOG = logging.getLogger(__name__)
++
++
++class DataSourceNoCacheNetworkOnly(sources.DataSource):
++    def _get_data(self):
++        LOG.debug("TEST _get_data called")
++        return True
++
++
++datasources = [
++    (
++        DataSourceNoCacheNetworkOnly,
++        (sources.DEP_FILESYSTEM, sources.DEP_NETWORK),
++    ),
++]
++
++
++def get_datasource_list(depends):
++    return sources.list_from_depends(depends, datasources)
+diff --git a/tests/integration_tests/assets/DataSourceNoCacheWithFallback.py b/tests/integration_tests/assets/DataSourceNoCacheWithFallback.py
+new file mode 100644
+index 000000000..fdfc473f8
+--- /dev/null
++++ b/tests/integration_tests/assets/DataSourceNoCacheWithFallback.py
+@@ -0,0 +1,29 @@
++import logging
++import os
++
++from cloudinit import sources
++
++LOG = logging.getLogger(__name__)
++
++
++class DataSourceNoCacheWithFallback(sources.DataSource):
++    def _get_data(self):
++        if os.path.exists("/ci-test-firstboot"):
++            LOG.debug("TEST _get_data called")
++            return True
++        return False
++
++    def check_if_fallback_is_allowed(self):
++        return True
++
++
++datasources = [
++    (
++        DataSourceNoCacheWithFallback,
++        (sources.DEP_FILESYSTEM,),
++    ),
++]
++
++
++def get_datasource_list(depends):
++    return sources.list_from_depends(depends, datasources)
+diff --git a/tests/integration_tests/datasources/test_caching.py b/tests/integration_tests/datasources/test_caching.py
+new file mode 100644
+index 000000000..33e4b671c
+--- /dev/null
++++ b/tests/integration_tests/datasources/test_caching.py
+@@ -0,0 +1,115 @@
++import pytest
++
++from tests.integration_tests import releases, util
++from tests.integration_tests.instances import IntegrationInstance
++
++
++def setup_custom_datasource(client: IntegrationInstance, datasource_name: str):
++    client.write_to_file(
++        "/etc/cloud/cloud.cfg.d/99-imds.cfg",
++        f"datasource_list: [ {datasource_name}, None ]\n"
++        "datasource_pkg_list: [ cisources ]",
++    )
++    assert client.execute(
++        "mkdir -p /usr/lib/python3/dist-packages/cisources"
++    )
++    client.push_file(
++        util.ASSETS_DIR / f"DataSource{datasource_name}.py",
++        "/usr/lib/python3/dist-packages/cisources/"
++        f"DataSource{datasource_name}.py",
++    )
++
++
++def verify_no_cache_boot(client: IntegrationInstance):
++    log = client.read_from_file("/var/log/cloud-init.log")
++    util.verify_ordered_items_in_text(
++        [
++            "No local datasource found",
++            "running 'init'",
++            "no cache found",
++            "Detected platform",
++            "TEST _get_data called",
++        ],
++        text=log,
++    )
++    util.verify_clean_boot(client)
++
++
++@pytest.mark.skipif(
++    not releases.IS_UBUNTU,
++    reason="hardcoded dist-packages directory",
++)
++def test_no_cache_network_only(client: IntegrationInstance):
++    """Test cache removal per boot. GH-5486
++
++    This tests the CloudStack password reset use case. The expectation is:
++    - Metadata is fetched in network timeframe only
++    - Because `check_instance_id` is not defined, no cached datasource
++      is found in the init-local phase, but the cache is used in the
++      remaining phases due to existance of /run/cloud-init/.instance-id
++    - Because `check_if_fallback_is_allowed` is not defined, cloud-init
++      does NOT fall back to the pickled datasource, and will
++      instead delete the cache during the init-local phase
++    - Metadata is therefore fetched every boot in the network phase
++    """
++    setup_custom_datasource(client, "NoCacheNetworkOnly")
++
++    # Run cloud-init as if first boot
++    assert client.execute("cloud-init clean --logs")
++    client.restart()
++
++    verify_no_cache_boot(client)
++
++    # Clear the log without clean and run cloud-init for subsequent boot
++    assert client.execute("echo '' > /var/log/cloud-init.log")
++    client.restart()
++
++    verify_no_cache_boot(client)
++
++
++@pytest.mark.skipif(
++    not releases.IS_UBUNTU,
++    reason="hardcoded dist-packages directory",
++)
++def test_no_cache_with_fallback(client: IntegrationInstance):
++    """Test we use fallback when defined and no cache available."""
++    setup_custom_datasource(client, "NoCacheWithFallback")
++
++    # Run cloud-init as if first boot
++    assert client.execute("cloud-init clean --logs")
++    # Used by custom datasource
++    client.execute("touch /ci-test-firstboot")
++    client.restart()
++
++    log = client.read_from_file("/var/log/cloud-init.log")
++    util.verify_ordered_items_in_text(
++        [
++            "no cache found",
++            "Detected platform",
++            "TEST _get_data called",
++            "running 'init'",
++            "restored from cache with run check",
++            "running 'modules:config'",
++        ],
++        text=log,
++    )
++    util.verify_clean_boot(client)
++
++    # Clear the log without clean and run cloud-init for subsequent boot
++    assert client.execute("echo '' > /var/log/cloud-init.log")
++    client.execute("rm /ci-test-firstboot")
++    client.restart()
++
++    log = client.read_from_file("/var/log/cloud-init.log")
++    util.verify_ordered_items_in_text(
++        [
++            "cache invalid in datasource",
++            "Detected platform",
++            "Restored fallback datasource from checked cache",
++            "running 'init'",
++            "restored from cache with run check",
++            "running 'modules:config'",
++        ],
++        text=log,
++    )
++    util.verify_clean_boot(client)
+diff --git a/tests/integration_tests/instances.py b/tests/integration_tests/instances.py
+index 3fc6558a2..23c0dc981 100644
+--- a/tests/integration_tests/instances.py
++++ b/tests/integration_tests/instances.py
+@@ -88,7 +88,9 @@ class IntegrationInstance:
+         # First push to a temporary directory because of permissions issues
+         tmp_path = _get_tmp_path()
+         self.instance.push_file(str(local_path), tmp_path)
+-        assert self.execute("mv {} {}".format(tmp_path, str(remote_path))).ok
++        assert self.execute(
++            "mv {} {}".format(tmp_path, str(remote_path))
++        ), f"Failed to push {tmp_path} to {remote_path}"
+ 
+     def read_from_file(self, remote_path) -> str:
+         result = self.execute("cat {}".format(remote_path))
+-- 
+2.39.3
+

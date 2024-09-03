@@ -1,6 +1,6 @@
 Name:                 cloud-init
 Version:              23.4
-Release:              7%{?dist}.5.0.2
+Release:              7%{?dist}.6.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -37,8 +37,10 @@ Patch17:              ci-fix-Always-use-single-datasource-if-specified-5098.patc
 Patch18:              ci-fix-cloudstack-Use-parsed-lease-file-for-virtual-rou.patch
 # For RHEL-46012 - [RHEL-9] cloud-init fails to configure DNS search domains [rhel-9.4.z]
 Patch19:              ci-feat-sysconfig-Add-DNS-from-interface-config-to-reso.patch
-Patch20:              future-backport.patch
-Patch21:              0001-Remove-rh-subscription.patch
+# For RHEL-50562 - [Cloud-init] [RHEL-9.4] Password reset feature broken with CloudstackDataSource
+Patch20:              ci-fix-Clean-cache-if-no-datasource-fallback-5499.patch
+Patch21:              future-backport.patch
+Patch22:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -255,8 +257,13 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue Jul 23 2024 Release Engineering <releng@openela.org> - 23.4.0.2
+* Tue Sep 03 2024 Release Engineering <releng@openela.org> - 23.4.0.2
 - Apply OpenELA fixes
+
+* Fri Jul 26 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el9_4.6
+- ci-fix-Clean-cache-if-no-datasource-fallback-5499.patch [RHEL-50562]
+- Resolves: RHEL-50562
+  ([Cloud-init] [RHEL-9.4] Password reset feature broken with CloudstackDataSource)
 
 * Mon Jul 08 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el9_4.5
 - ci-feat-sysconfig-Add-DNS-from-interface-config-to-reso.patch [RHEL-46012]
