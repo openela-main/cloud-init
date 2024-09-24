@@ -6,7 +6,7 @@
 
 Name:                 cloud-init
 Version:              23.4
-Release:              7%{?dist}.7.0.1
+Release:              7%{?dist}.8.0.1
 Summary:              Cloud instance init scripts
 
 Group:                System Environment/Base
@@ -55,8 +55,10 @@ Patch29:              ci-fix-cloudstack-Use-parsed-lease-file-for-virtual-rou.pa
 Patch30:              ci-feat-sysconfig-Add-DNS-from-interface-config-to-reso.patch
 # For RHEL-49742 - [Cloud-init] [RHEL-8.10] Password reset feature broken with CloudstackDataSource
 Patch31:              ci-fix-Clean-cache-if-no-datasource-fallback-5499.patch
-Patch32:              0001-Ensure-cloud-user-is-applied-to-OpenELA.patch
-Patch33:              0001-Remove-rh-subscription.patch
+# For RHEL-54155 - [RHEL 8.10] cloud-init schema validation fails.
+Patch32:              ci-fix-Add-subnet-ipv4-ipv6-to-network-schema-5191.patch
+Patch33:              0001-Ensure-cloud-user-is-applied-to-OpenELA.patch
+Patch34:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -272,8 +274,13 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue Aug 13 2024 Release Engineering <releng@openela.org> - 23.4.0.1
+* Tue Sep 24 2024 Release Engineering <releng@openela.org> - 23.4.0.1
 - Apply OpenELA fixes
+
+* Tue Aug 20 2024 Jon Maloy <jmaloy@redhat.com> - 23.4-7.el8_10.8
+- ci-fix-Add-subnet-ipv4-ipv6-to-network-schema-5191.patch [RHEL-54155]
+- Resolves: RHEL-54155
+  ([RHEL 8.10] cloud-init schema validation fails.)
 
 * Thu Jul 25 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el8_10.7
 - ci-fix-Clean-cache-if-no-datasource-fallback-5499.patch [RHEL-49742]

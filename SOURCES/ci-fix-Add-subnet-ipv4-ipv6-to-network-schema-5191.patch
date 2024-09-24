@@ -1,0 +1,45 @@
+From b424877c0e7673466e7bd354c1eed4db908ebab3 Mon Sep 17 00:00:00 2001
+From: James Falcon <james.falcon@canonical.com>
+Date: Thu, 18 Apr 2024 20:27:27 -0500
+Subject: [PATCH] fix: Add subnet ipv4/ipv6  to network schema (#5191)
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 143: fix: Add subnet ipv4/ipv6  to network schema (#5191)
+RH-Jira: RHEL-54155
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: Cathy Avery <cavery@redhat.com>
+RH-Commit: [1/1] d4c7beb80b8c67df6b6fc04db8d3b93ed82dd067
+
+These are used by our openstack network_data.json parsing code and
+get used by the sysconfig renderer.
+
+Fixes GH-4911
+
+(cherry picked from commit 0b1ca174095e3ad685e6d6649bb08aafb19a95b9)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/config/schemas/schema-network-config-v1.json | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/cloudinit/config/schemas/schema-network-config-v1.json b/cloudinit/config/schemas/schema-network-config-v1.json
+index 64c492a4..f485c784 100644
+--- a/cloudinit/config/schemas/schema-network-config-v1.json
++++ b/cloudinit/config/schemas/schema-network-config-v1.json
+@@ -523,6 +523,14 @@
+           "items": {
+             "$ref": "#/$defs/anyOf_type_route"
+           }
++        },
++        "ipv4": {
++          "type": "boolean",
++          "description": "Indicate if the subnet is IPv4. If not specified, it will be inferred from the subnet type or address. This exists for compatibility with OpenStack's ``network_data.json`` when rendered through sysconfig."
++        },
++        "ipv6": {
++          "type": "boolean",
++          "description": "Indicate if the subnet is IPv6. If not specified, it will be inferred from the subnet type or address. This is exists for compatibility with OpenStack's ``network_data.json`` when rendered through sysconfig."
+         }
+       }
+     },
+-- 
+2.45.1
+
