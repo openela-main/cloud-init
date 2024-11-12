@@ -1,15 +1,15 @@
-From 4d68dcd0a90fcd817ae981b492101387e5bddf5c Mon Sep 17 00:00:00 2001
+From 332bb23bcfde801edf792e6c629ec350be07b952 Mon Sep 17 00:00:00 2001
 From: James Falcon <james.falcon@canonical.com>
 Date: Tue, 19 Mar 2024 14:24:11 -0500
 Subject: [PATCH 3/3] fix: Undeprecate 'network' in schema route definition
  (#5072)
 
 RH-Author: Ani Sinha <anisinha@redhat.com>
-RH-MergeRequest: 130: fix: Undeprecate 'network' in schema route definition (#5072)
-RH-Jira: RHEL-29718
+RH-MergeRequest: 73: fix: Undeprecate 'network' in schema route definition (#5072)
+RH-Jira: RHEL-29709
 RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
 RH-Acked-by: Cathy Avery <cavery@redhat.com>
-RH-Commit: [1/1] 31db6404fc84dbb9b62e3df116f4ca42be95d4c0
+RH-Commit: [1/1] 61c660be43fd25999bca0cfd66d7b2150fee5a14 (anisinha/cloud-init)
 
 It is passed through to our v1 schema from OpenStack network_data.json
 
@@ -22,7 +22,7 @@ Signed-off-by: Ani Sinha <anisinha@redhat.com>
  1 file changed, 1 insertion(+), 4 deletions(-)
 
 diff --git a/cloudinit/config/schemas/schema-network-config-v1.json b/cloudinit/config/schemas/schema-network-config-v1.json
-index 56dc27c90..64c492a47 100644
+index 56dc27c9..64c492a4 100644
 --- a/cloudinit/config/schemas/schema-network-config-v1.json
 +++ b/cloudinit/config/schemas/schema-network-config-v1.json
 @@ -445,10 +445,7 @@

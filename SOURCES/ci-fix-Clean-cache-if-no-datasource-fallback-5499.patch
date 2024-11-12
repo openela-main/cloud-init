@@ -1,14 +1,13 @@
-From b03489391a39798934548720cc70cdc9e4ce94fb Mon Sep 17 00:00:00 2001
+From 914ac26ebd889b1f5cbb13d55fc011e92fc213c6 Mon Sep 17 00:00:00 2001
 From: James Falcon <james.falcon@canonical.com>
 Date: Thu, 18 Jul 2024 09:04:54 -0400
-Subject: [PATCH] fix: Clean cache if no datasource fallback (#5499)
+Subject: [PATCH 1/2] fix: Clean cache if no datasource fallback (#5499)
 
 RH-Author: Ani Sinha <anisinha@redhat.com>
-RH-MergeRequest: 142: fix: Clean cache if no datasource fallback (#5499)
-RH-Jira: RHEL-50562
+RH-MergeRequest: 103: fix: Clean cache if no datasource fallback (#5499)
+RH-Jira: RHEL-49736
 RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
-RH-Acked-by: xiachen <xiachen@redhat.com>
-RH-Commit: [1/1] 83f82f71ff9127f480a336775d0203ded6aa17bd
+RH-Commit: [1/1] 37eacd97f5e60fae2f71d401c528d508d3db517e (anisinha/cloud-init)
 
 9929a00 added the ability to used a cached datasource when none is
 found. This was supposed to be per-datasource, but the lack of cache
@@ -31,7 +30,7 @@ Signed-off-by: Ani Sinha <anisinha@redhat.com>
  create mode 100644 tests/integration_tests/datasources/test_caching.py
 
 diff --git a/cloudinit/stages.py b/cloudinit/stages.py
-index 0b795624f..ace94c9aa 100644
+index 0b795624..ace94c9a 100644
 --- a/cloudinit/stages.py
 +++ b/cloudinit/stages.py
 @@ -378,6 +378,7 @@ class Init:
@@ -44,7 +43,7 @@ index 0b795624f..ace94c9aa 100644
          # Ensure we adjust our path members datasource
 diff --git a/tests/integration_tests/assets/DataSourceNoCacheNetworkOnly.py b/tests/integration_tests/assets/DataSourceNoCacheNetworkOnly.py
 new file mode 100644
-index 000000000..54a7bab34
+index 00000000..54a7bab3
 --- /dev/null
 +++ b/tests/integration_tests/assets/DataSourceNoCacheNetworkOnly.py
 @@ -0,0 +1,23 @@
@@ -73,7 +72,7 @@ index 000000000..54a7bab34
 +    return sources.list_from_depends(depends, datasources)
 diff --git a/tests/integration_tests/assets/DataSourceNoCacheWithFallback.py b/tests/integration_tests/assets/DataSourceNoCacheWithFallback.py
 new file mode 100644
-index 000000000..fdfc473f8
+index 00000000..fdfc473f
 --- /dev/null
 +++ b/tests/integration_tests/assets/DataSourceNoCacheWithFallback.py
 @@ -0,0 +1,29 @@
@@ -108,7 +107,7 @@ index 000000000..fdfc473f8
 +    return sources.list_from_depends(depends, datasources)
 diff --git a/tests/integration_tests/datasources/test_caching.py b/tests/integration_tests/datasources/test_caching.py
 new file mode 100644
-index 000000000..33e4b671c
+index 00000000..33e4b671
 --- /dev/null
 +++ b/tests/integration_tests/datasources/test_caching.py
 @@ -0,0 +1,115 @@
@@ -228,7 +227,7 @@ index 000000000..33e4b671c
 +    )
 +    util.verify_clean_boot(client)
 diff --git a/tests/integration_tests/instances.py b/tests/integration_tests/instances.py
-index 3fc6558a2..23c0dc981 100644
+index 3fc6558a..23c0dc98 100644
 --- a/tests/integration_tests/instances.py
 +++ b/tests/integration_tests/instances.py
 @@ -88,7 +88,9 @@ class IntegrationInstance:

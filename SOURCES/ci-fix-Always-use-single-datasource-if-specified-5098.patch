@@ -1,14 +1,14 @@
-From cf8684342911aa56a362b2e8c3c222e2a6438877 Mon Sep 17 00:00:00 2001
+From 62cec1e38e117fe6b24888862576ac57be14bbda Mon Sep 17 00:00:00 2001
 From: James Falcon <james.falcon@canonical.com>
 Date: Tue, 26 Mar 2024 15:55:50 -0500
 Subject: [PATCH] fix: Always use single datasource if specified (#5098)
 
 RH-Author: Ani Sinha <anisinha@redhat.com>
-RH-MergeRequest: 134: fix: Always use single datasource if specified (#5098)
-RH-Jira: RHEL-36700
-RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-MergeRequest: 82: fix: Always use single datasource if specified (#5098)
+RH-Jira: RHEL-36255
 RH-Acked-by: Cathy Avery <cavery@redhat.com>
-RH-Commit: [1/1] 03e1349ae95ae68efef34c667062e061c77935b6
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Commit: [1/1] 068e97fcc18dd99f1112a9109acdb30fe2880f6e (anisinha/cloud-init)
 
 This change may require a user to add `None` to the `datasource_list`
 defined in `/etc/cloud/cloud.cfg[.d]` if they have a customized
@@ -32,7 +32,7 @@ Signed-off-by: Ani Sinha <anisinha@redhat.com>
  2 files changed, 6 insertions(+), 2 deletions(-)
 
 diff --git a/tests/unittests/test_ds_identify.py b/tests/unittests/test_ds_identify.py
-index ba0bf779a..acbf3f032 100644
+index ba0bf779..acbf3f03 100644
 --- a/tests/unittests/test_ds_identify.py
 +++ b/tests/unittests/test_ds_identify.py
 @@ -522,7 +522,7 @@ class TestDsIdentify(DsIdentifyBase):
@@ -45,7 +45,7 @@ index ba0bf779a..acbf3f032 100644
      def test_configured_list_with_none(self):
          """When datasource_list already contains None, None is not added.
 diff --git a/tools/ds-identify b/tools/ds-identify
-index ec2cc18ab..6e49ded36 100755
+index ec2cc18a..6e49ded3 100755
 --- a/tools/ds-identify
 +++ b/tools/ds-identify
 @@ -1865,7 +1865,11 @@ _main() {

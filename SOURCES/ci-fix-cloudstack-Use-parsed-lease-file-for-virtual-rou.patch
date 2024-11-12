@@ -1,15 +1,15 @@
-From 30563d06d405953a3d1f1155a4bf1140660d3b40 Mon Sep 17 00:00:00 2001
+From fcaff2e02a07af587d8366f61df1685435e32288 Mon Sep 17 00:00:00 2001
 From: Brett Holman <brett.holman@canonical.com>
 Date: Wed, 3 Jan 2024 09:11:40 -0700
 Subject: [PATCH] fix(cloudstack): Use parsed lease file for virtual router in
  cloudstack
 
 RH-Author: Ani Sinha <anisinha@redhat.com>
-RH-MergeRequest: 136: fix(cloudstack): Use parsed lease file for virtual router in cloudstack
-RH-Jira: RHEL-40419
+RH-MergeRequest: 85: fix(cloudstack): Use parsed lease file for virtual router in cloudstack
+RH-Jira: RHEL-40217
 RH-Acked-by: Cathy Avery <cavery@redhat.com>
 RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
-RH-Commit: [1/1] b24ddecac72488e784d2c59fff7b8f9ccee45181
+RH-Commit: [1/1] 9d1353620ee2c773170e424479bb2664116554f4 (anisinha/cloud-init)
 
 Fixes 5942f4023e2581a
 
@@ -20,7 +20,7 @@ Signed-off-by: Ani Sinha <anisinha@redhat.com>
  1 file changed, 11 insertions(+), 11 deletions(-)
 
 diff --git a/cloudinit/sources/DataSourceCloudStack.py b/cloudinit/sources/DataSourceCloudStack.py
-index fd2482a3f..f752765d3 100644
+index fd2482a3..f752765d 100644
 --- a/cloudinit/sources/DataSourceCloudStack.py
 +++ b/cloudinit/sources/DataSourceCloudStack.py
 @@ -229,18 +229,18 @@ def get_vr_address():

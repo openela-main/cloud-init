@@ -1,15 +1,15 @@
-From 33922d72633d623c3633d7340a71f6aaeeb32494 Mon Sep 17 00:00:00 2001
+From c21351ad9da5aebcb252aa36cbfa92ac16fa9746 Mon Sep 17 00:00:00 2001
 From: Florian Apolloner <florian@apolloner.eu>
 Date: Fri, 5 Jan 2024 19:07:12 +0100
 Subject: [PATCH 2/3] feat: apply global DNS to interfaces in network-manager 
  (#4723)
 
 RH-Author: Cathy Avery <cavery@redhat.com>
-RH-MergeRequest: 127: Fixes for cloud-init fails to configure DNS/search domains for network-config v1
-RH-Jira: RHEL-29558
+RH-MergeRequest: 72: Fixes for cloud-init fails to configure DNS/search domains for network-config v1
+RH-Jira: RHEL-20964
 RH-Acked-by: Ani Sinha <anisinha@redhat.com>
 RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
-RH-Commit: [2/2] 6b7374590b0a90cd7638d301c963dde6e05c984f
+RH-Commit: [2/2] 1d2b10133ec2558e9665f21f53e4b1a898e283a8 (cavery/cloud-init-c-9-s)
 
 Sometimes DNS settings in cloud configs are specified globally and
 not per interface / subnet. This results in a configuration without
@@ -27,7 +27,7 @@ Signed-off-by: Cathy Avery <cavery@redhat.com>
  4 files changed, 47 insertions(+), 20 deletions(-)
 
 diff --git a/cloudinit/net/network_manager.py b/cloudinit/net/network_manager.py
-index bd6e6d759..0ba210b74 100644
+index bd6e6d75..0ba210b7 100644
 --- a/cloudinit/net/network_manager.py
 +++ b/cloudinit/net/network_manager.py
 @@ -246,7 +246,7 @@ class NMConnection:
@@ -114,7 +114,7 @@ index bd6e6d759..0ba210b74 100644
          # And finally write the files
          for con_id, conn in self.connections.items():
 diff --git a/tests/unittests/net/test_net_rendering.py b/tests/unittests/net/test_net_rendering.py
-index 06feab891..f340ffc1b 100644
+index 06feab89..f340ffc1 100644
 --- a/tests/unittests/net/test_net_rendering.py
 +++ b/tests/unittests/net/test_net_rendering.py
 @@ -88,6 +88,9 @@ def _check_network_manager(network_state: NetworkState, tmp_path: Path):
@@ -128,7 +128,7 @@ index 06feab891..f340ffc1b 100644
      network_config = safeyaml.load(
          Path(ARTIFACT_DIR, f"{test_name}.yaml").read_text()
 diff --git a/tests/unittests/test_net.py b/tests/unittests/test_net.py
-index 2a99f1507..d7c9a4144 100644
+index 2a99f150..d7c9a414 100644
 --- a/tests/unittests/test_net.py
 +++ b/tests/unittests/test_net.py
 @@ -646,6 +646,7 @@ method=manual
@@ -191,7 +191,7 @@ index 2a99f1507..d7c9a4144 100644
                  """
              ),
 diff --git a/tools/.github-cla-signers b/tools/.github-cla-signers
-index dbdb9cfa5..f4da0989c 100644
+index dbdb9cfa..f4da0989 100644
 --- a/tools/.github-cla-signers
 +++ b/tools/.github-cla-signers
 @@ -13,6 +13,7 @@ andrewbogott

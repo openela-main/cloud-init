@@ -1,0 +1,412 @@
+From ce69cd178d9c05827db1ca1654de82dc3f9f521e Mon Sep 17 00:00:00 2001
+From: Chad Smith <chad.smith@canonical.com>
+Date: Thu, 27 Jun 2024 18:12:31 -0600
+Subject: [PATCH 3/3] fix(schema): permit deprecated hyphenated keys under
+ users key (#5456)
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 95: Deprecate the users ssh-authorized-keys property (#5162)
+RH-Jira: RHEL-45262
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Commit: [3/3] 76804599a9166796dc52bab2031a706993ad2e3c (anisinha/cloud-init)
+
+Both hyphenated and underscore delimited key names are permitted
+by cloudinit/distros/ug_util.py#L114 due to magic replacement
+of key names.
+
+Since this is still valid json schema, add the necessary hyphenated
+aliases for all users/groups keys. Because the goal in the future is
+to only support one config key for a given configuraion option, add
+deprecated keys to those schema definitions.
+
+Also drop the description key from the deprecates lock-passwd schema
+key.
+
+Any deprecated schema key which provides a suggested replacement should
+not provide duplicated key descriptions as the preferred replacement
+will provided the necessary context.
+
+Fixes GH-5454
+
+(cherry picked from commit b3618d44a37ae6345f0c3d935b77ae0ae9dd1c92)
+---
+ .../schemas/schema-cloud-config-v1.json       | 103 +++++++++++++-----
+ tests/unittests/config/test_cc_grub_dpkg.py   |   4 +-
+ .../test_cc_package_update_upgrade_install.py |  11 +-
+ .../unittests/config/test_cc_users_groups.py  |  33 +++---
+ tests/unittests/config/test_schema.py         |  15 ++-
+ 5 files changed, 108 insertions(+), 58 deletions(-)
+
+diff --git a/cloudinit/config/schemas/schema-cloud-config-v1.json b/cloudinit/config/schemas/schema-cloud-config-v1.json
+index 97cf2b74..03e723e2 100644
+--- a/cloudinit/config/schemas/schema-cloud-config-v1.json
++++ b/cloudinit/config/schemas/schema-cloud-config-v1.json
+@@ -178,9 +178,9 @@
+               "patternProperties": {
+                 "^.+$": {
+                   "label": "<group_name>",
+-                  "description": "When providing an object for users.groups the ``<group_name>`` keys are the groups to add this user to",
+                   "deprecated": true,
+                   "deprecated_version": "23.1",
++                  "deprecated_description": "The use of ``object`` type is deprecated. Use ``string`` or ``array`` of ``string`` instead.",
+                   "type": [
+                     "null"
+                   ],
+@@ -203,9 +203,7 @@
+           "type": "string"
+         },
+         "lock-passwd": {
+-          "default": true,
+           "type": "boolean",
+-          "description": "Default: ``true``",
+           "deprecated": true,
+           "deprecated_version": "22.3",
+           "deprecated_description": "Use ``lock_passwd`` instead."
+@@ -215,16 +213,34 @@
+           "description": "Disable password login. Default: ``true``",
+           "type": "boolean"
+         },
++        "no-create-home": {
++          "type": "boolean",
++          "deprecated": true,
++          "deprecated_version": "24.2",
++          "deprecated_description": "Use ``no_create_home`` instead."
++        },
+         "no_create_home": {
+           "default": false,
+           "description": "Do not create home directory. Default: ``false``",
+           "type": "boolean"
+         },
++        "no-log-init": {
++          "type": "boolean",
++          "deprecated": true,
++          "deprecated_version": "24.2",
++          "deprecated_description": "Use ``no_log_init`` instead."
++        },
+         "no_log_init": {
+           "default": false,
+           "description": "Do not initialize lastlog and faillog for user. Default: ``false``",
+           "type": "boolean"
+         },
++        "no-user-group": {
++          "type": "boolean",
++          "deprecated": true,
++          "deprecated_version": "24.2",
++          "deprecated_description": "Use ``no_user_group`` instead."
++        },
+         "no_user_group": {
+           "default": false,
+           "description": "Do not create group named after user. Default: ``false``",
+@@ -234,24 +250,54 @@
+           "description": "Hash of user password applied when user does not exist. This will NOT be applied if the user already exists. To generate this hash, run: mkpasswd --method=SHA-512 --rounds=4096. **Note:** While hashed password is better than plain text, using ``passwd`` in user-data represents a security risk as user-data could be accessible by third-parties depending on your cloud platform.",
+           "type": "string"
+         },
++        "hashed-passwd": {
++          "type": "string",
++          "deprecated": true,
++          "deprecated_version": "24.2",
++          "deprecated_description": "Use ``hashed_passwd`` instead."
++        },
+         "hashed_passwd": {
+           "description": "Hash of user password to be applied. This will be applied even if the user is pre-existing. To generate this hash, run: mkpasswd --method=SHA-512 --rounds=4096. **Note:** While ``hashed_password`` is better than ``plain_text_passwd``, using ``passwd`` in user-data represents a security risk as user-data could be accessible by third-parties depending on your cloud platform.",
+           "type": "string"
+         },
++        "plain-text-passwd": {
++          "type": "string",
++          "deprecated": true,
++          "deprecated_version": "24.2",
++          "deprecated_description": "Use ``plain_text_passwd`` instead."
++        },
+         "plain_text_passwd": {
+           "description": "Clear text of user password to be applied. This will be applied even if the user is pre-existing. There are many more secure options than using plain text passwords, such as ``ssh_import_id`` or ``hashed_passwd``. Do not use this in production as user-data and your password can be exposed.",
+           "type": "string"
+         },
++        "create-groups": {
++          "type": "boolean",
++          "deprecated": true,
++          "deprecated_version": "24.2",
++          "deprecated_description": "Use ``create_groups`` instead."
++        },
+         "create_groups": {
+           "default": true,
+           "description": "Boolean set ``false`` to disable creation of specified user ``groups``. Default: ``true``.",
+           "type": "boolean"
+         },
++        "primary-group": {
++          "type": "string",
++          "deprecated": true,
++          "deprecated_version": "24.2",
++          "deprecated_description": "Use ``primary_group`` instead."
++        },
+         "primary_group": {
+           "default": "``<username>``",
+           "description": "Primary group for user. Default: ``<username>``",
+           "type": "string"
+         },
++        "selinux-user": {
++          "type": "string",
++          "deprecated": true,
++          "deprecated_version": "24.2",
++          "deprecated_description": "Use ``selinux_user`` instead."
++        },
+         "selinux_user": {
+           "description": "SELinux user for user's login. Default to default SELinux user.",
+           "type": "string"
+@@ -273,20 +319,24 @@
+           "minItems": 1
+         },
+         "ssh-authorized-keys": {
+-          "allOf": [
+-            {
+-              "type": "array",
+-              "items": {
+-                "type": "string"
+-              },
+-              "minItems": 1
+-            },
+-            {
+-              "deprecated": true,
+-              "deprecated_version": "18.3",
+-              "deprecated_description": "Use ``ssh_authorized_keys`` instead."
+-            }
+-          ]
++          "type": "array",
++          "items": {
++            "type": "string"
++          },
++          "minItems": 1,
++          "deprecated": true,
++          "deprecated_version": "18.3",
++          "deprecated_description": "Use ``ssh_authorized_keys`` instead."
++        },
++        "ssh-import-id": {
++          "type": "array",
++          "items": {
++            "type": "string"
++          },
++          "minItems": 1,
++          "deprecated": true,
++          "deprecated_version": "24.2",
++          "deprecated_description": "Use ``ssh_import_id`` instead."
+         },
+         "ssh_import_id": {
+           "description": "List of SSH IDs to import for user. Can not be combined with ``ssh_redirect_user``.",
+@@ -296,6 +346,12 @@
+           },
+           "minItems": 1
+         },
++        "ssh-redirect-user": {
++          "type": "boolean",
++          "deprecated": true,
++          "deprecated_version": "24.2",
++          "deprecated_description": "Use ``ssh_redirect_user`` instead."
++        },
+         "ssh_redirect_user": {
+           "type": "boolean",
+           "default": false,
+@@ -398,7 +454,6 @@
+       "properties": {
+         "remove-defaults": {
+           "type": "boolean",
+-          "default": false,
+           "deprecated": true,
+           "deprecated_version": "22.3",
+           "deprecated_description": "Use ``remove_defaults`` instead."
+@@ -516,9 +571,9 @@
+         },
+         "system_info": {
+           "type": "object",
+-          "description": "System and/or distro specific settings. This is not intended to be overridden by user data or vendor data.",
+           "deprecated": true,
+-          "deprecated_version": "24.2"
++          "deprecated_version": "24.2",
++          "deprecated_description": "System and/or distro specific settings. This is not intended to be overridden by user data or vendor data."
+         }
+       }
+     },
+@@ -1483,7 +1538,6 @@
+         },
+         "grub-dpkg": {
+           "type": "object",
+-          "description": "An alias for ``grub_dpkg``",
+           "deprecated": true,
+           "deprecated_version": "22.2",
+           "deprecated_description": "Use ``grub_dpkg`` instead."
+@@ -2082,24 +2136,18 @@
+         },
+         "apt_update": {
+           "type": "boolean",
+-          "default": false,
+-          "description": "Default: ``false``.",
+           "deprecated": true,
+           "deprecated_version": "22.2",
+           "deprecated_description": "Use ``package_update`` instead."
+         },
+         "apt_upgrade": {
+           "type": "boolean",
+-          "default": false,
+-          "description": "Default: ``false``.",
+           "deprecated": true,
+           "deprecated_version": "22.2",
+           "deprecated_description": "Use ``package_upgrade`` instead."
+         },
+         "apt_reboot_if_required": {
+           "type": "boolean",
+-          "default": false,
+-          "description": "Default: ``false``.",
+           "deprecated": true,
+           "deprecated_version": "22.2",
+           "deprecated_description": "Use ``package_reboot_if_required`` instead."
+@@ -2798,7 +2846,6 @@
+                 }
+               ],
+               "minItems": 1,
+-              "description": "List of ``username:password`` pairs. Each user will have the corresponding password set. A password can be randomly generated by specifying ``RANDOM`` or ``R`` as a user's password. A hashed password, created by a tool like ``mkpasswd``, can be specified. A regex (``r'\\$(1|2a|2y|5|6)(\\$.+){2}'``) is used to determine if a password value should be treated as a hash.",
+               "deprecated": true,
+               "deprecated_version": "22.2",
+               "deprecated_description": "Use ``users`` instead."
+diff --git a/tests/unittests/config/test_cc_grub_dpkg.py b/tests/unittests/config/test_cc_grub_dpkg.py
+index b4bd48df..36ef7fd9 100644
+--- a/tests/unittests/config/test_cc_grub_dpkg.py
++++ b/tests/unittests/config/test_cc_grub_dpkg.py
+@@ -300,8 +300,8 @@ class TestGrubDpkgSchema:
+                 pytest.raises(
+                     SchemaValidationError,
+                     match=(
+-                        "Cloud config schema deprecations: grub-dpkg: An alias"
+-                        " for ``grub_dpkg`` Deprecated in version 22.2. Use "
++                        "Cloud config schema deprecations: grub-dpkg:"
++                        "  Deprecated in version 22.2. Use "
+                         "``grub_dpkg`` instead."
+                     ),
+                 ),
+diff --git a/tests/unittests/config/test_cc_package_update_upgrade_install.py b/tests/unittests/config/test_cc_package_update_upgrade_install.py
+index 9ba7f178..734dbc53 100644
+--- a/tests/unittests/config/test_cc_package_update_upgrade_install.py
++++ b/tests/unittests/config/test_cc_package_update_upgrade_install.py
+@@ -192,16 +192,16 @@ class TestPackageUpdateUpgradeSchema:
+             (
+                 {"apt_update": False},
+                 (
+-                    "Cloud config schema deprecations: apt_update: "
+-                    "Default: ``false``. Deprecated in version 22.2. "
++                    "Cloud config schema deprecations: apt_update:  "
++                    "Deprecated in version 22.2. "
+                     "Use ``package_update`` instead."
+                 ),
+             ),
+             (
+                 {"apt_upgrade": False},
+                 (
+-                    "Cloud config schema deprecations: apt_upgrade: "
+-                    "Default: ``false``. Deprecated in version 22.2. "
++                    "Cloud config schema deprecations: apt_upgrade:  "
++                    "Deprecated in version 22.2. "
+                     "Use ``package_upgrade`` instead."
+                 ),
+             ),
+@@ -209,8 +209,7 @@ class TestPackageUpdateUpgradeSchema:
+                 {"apt_reboot_if_required": False},
+                 (
+                     "Cloud config schema deprecations: "
+-                    "apt_reboot_if_required: Default: ``false``. "
+-                    "Deprecated in version 22.2. Use "
++                    "apt_reboot_if_required:  Deprecated in version 22.2. Use "
+                     "``package_reboot_if_required`` instead."
+                 ),
+             ),
+diff --git a/tests/unittests/config/test_cc_users_groups.py b/tests/unittests/config/test_cc_users_groups.py
+index 53e231e1..4ca67f77 100644
+--- a/tests/unittests/config/test_cc_users_groups.py
++++ b/tests/unittests/config/test_cc_users_groups.py
+@@ -371,9 +371,20 @@ class TestUsersGroupsSchema:
+                     SchemaValidationError,
+                     match=(
+                         "Cloud config schema deprecations: "
+-                        "users.0.lock-passwd: Default: ``true`` "
+-                        "Deprecated in version 22.3. Use "
+-                        "``lock_passwd`` instead."
++                        "users.0.lock-passwd:  Deprecated in version 22.3."
++                        " Use ``lock_passwd`` instead."
++                    ),
++                ),
++                False,
++            ),
++            (
++                {"users": [{"name": "bbsw", "no-create-home": True}]},
++                pytest.raises(
++                    SchemaValidationError,
++                    match=(
++                        "Cloud config schema deprecations: "
++                        "users.0.no-create-home:  Deprecated in version 24.2."
++                        " Use ``no_create_home`` instead."
+                     ),
+                 ),
+                 False,
+@@ -394,13 +405,10 @@ class TestUsersGroupsSchema:
+                     SchemaValidationError,
+                     match=(
+                         "Cloud config schema deprecations: "
+-                        "users.0.groups.adm: When providing an object "
+-                        "for users.groups the ``<group_name>`` keys "
+-                        "are the groups to add this user to Deprecated"
+-                        " in version 23.1., users.0.groups.sudo: When "
+-                        "providing an object for users.groups the "
+-                        "``<group_name>`` keys are the groups to add "
+-                        "this user to Deprecated in version 23.1."
++                        "users.0.groups.adm:  Deprecated in version 23.1. "
++                        "The use of ``object`` type is deprecated. Use "
++                        "``string`` or ``array`` of ``string`` instead., "
++                        "users.0.groups.sudo:  Deprecated in version 23.1."
+                     ),
+                 ),
+                 False,
+@@ -456,10 +464,7 @@ class TestUsersGroupsSchema:
+                     SchemaValidationError,
+                     match=(
+                         "Cloud config schema deprecations: "
+-                        "user.groups.sbuild: When providing an object "
+-                        "for users.groups the ``<group_name>`` keys "
+-                        "are the groups to add this user to Deprecated"
+-                        " in version 23.1."
++                        "user.groups.sbuild:  Deprecated in version 23.1."
+                     ),
+                 ),
+                 False,
+diff --git a/tests/unittests/config/test_schema.py b/tests/unittests/config/test_schema.py
+index 52667332..8208affc 100644
+--- a/tests/unittests/config/test_schema.py
++++ b/tests/unittests/config/test_schema.py
+@@ -2251,9 +2251,9 @@ class TestHandleSchemaArgs:
+                     apt_reboot_if_required: true            # D3
+ 
+                     # Deprecations: -------------
+-                    # D1: Default: ``false``. Deprecated in version 22.2. Use ``package_update`` instead.
+-                    # D2: Default: ``false``. Deprecated in version 22.2. Use ``package_upgrade`` instead.
+-                    # D3: Default: ``false``. Deprecated in version 22.2. Use ``package_reboot_if_required`` instead.
++                    # D1: Deprecated in version 22.2. Use ``package_update`` instead.
++                    # D2: Deprecated in version 22.2. Use ``package_upgrade`` instead.
++                    # D3: Deprecated in version 22.2. Use ``package_reboot_if_required`` instead.
+ 
+                     Valid schema {cfg_file}
+                     """  # noqa: E501
+@@ -2264,11 +2264,10 @@ class TestHandleSchemaArgs:
+                 dedent(
+                     """\
+                     Cloud config schema deprecations: \
+-apt_reboot_if_required: Default: ``false``. Deprecated in version 22.2.\
+- Use ``package_reboot_if_required`` instead., apt_update: Default: \
+-``false``. Deprecated in version 22.2. Use ``package_update`` instead.,\
+- apt_upgrade: Default: ``false``. Deprecated in version 22.2. Use \
+-``package_upgrade`` instead.\
++apt_reboot_if_required: Deprecated in version 22.2. Use\
++ ``package_reboot_if_required`` instead., apt_update: Deprecated in version\
++ 22.2. Use ``package_update`` instead., apt_upgrade: Deprecated in version\
++ 22.2. Use ``package_upgrade`` instead.\
+                     Valid schema {cfg_file}
+                     """  # noqa: E501
+                 ),
+-- 
+2.39.3
+

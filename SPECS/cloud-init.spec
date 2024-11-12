@@ -1,6 +1,6 @@
 Name:                 cloud-init
 Version:              23.4
-Release:              7%{?dist}.6.0.2
+Release:              19%{?dist}.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -23,24 +23,52 @@ Patch10:              ci-Pin-pythes-8.0.0.patch
 Patch11:              ci-fix-Add-types-to-network-v1-schema-4841.patch
 # For RHEL-28549 - [RHEL 9.4] cloud-init 23.4 returns 2 on recoverable errors instead of 0
 Patch12:              ci-Retain-exit-code-in-cloud-init-status-for-recoverabl.patch
-# For RHEL-29558 - [rhel-9]cloud-init fails to configure DNS/search domains for network-config v1 [rhel-9.4.0.z]
-Patch13:              ci-fix-Correct-v2-NetworkManager-route-rendering-463.patch
-# For RHEL-29558 - [rhel-9]cloud-init fails to configure DNS/search domains for network-config v1 [rhel-9.4.0.z]
-Patch14:              ci-feat-apply-global-DNS-to-interfaces-in-network-mana.patch
-# For RHEL-29718 - Suggest to backport patch ff40d1a to undeprecate 'network' in schema route definition [rhel-9.4.0.z]
-Patch15:              ci-fix-Undeprecate-network-in-schema-route-definition.patch
-# For RHEL-32845 - [cloud-init][ESXi]VMware datasource resets on every boot causing it to lose network configuration [rhel-9.4.z]
+# For RHEL-20964 - [rhel-9]cloud-init fails to configure DNS/search domains for network-config v1
+Patch13:              ci-fix-Correct-v2-NetworkManager-route-rendering-4637.patch
+# For RHEL-20964 - [rhel-9]cloud-init fails to configure DNS/search domains for network-config v1
+Patch14:              ci-feat-apply-global-DNS-to-interfaces-in-network-manag.patch
+# For RHEL-29709 - Suggest to backport patch ff40d1a to undeprecate 'network' in schema route definition
+Patch15:              ci-fix-Undeprecate-network-in-schema-route-definition-5.patch
+# For RHEL-32846 - [cloud-init][ESXi]VMware datasource resets on every boot causing it to lose network configuration [rhel-9]
 Patch16:              ci-fix-Fall-back-to-cached-local-ds-if-no-valid-ds-foun.patch
-# For RHEL-36700 - DataSourceNoCloudNet not configurable via config files [rhel-9.4.z]
+# For RHEL-36255 - [rhel-9.5] DataSourceNoCloudNet not configurable via config files
 Patch17:              ci-fix-Always-use-single-datasource-if-specified-5098.patch
-# For RHEL-40419 - [Cloud-init] CloudstackDataSource cannot work with NetworkManager [rhel-9.4.z]
+# For RHEL-40217 - [Cloud-init] CloudstackDataSource cannot work with NetworkManager
 Patch18:              ci-fix-cloudstack-Use-parsed-lease-file-for-virtual-rou.patch
-# For RHEL-46012 - [RHEL-9] cloud-init fails to configure DNS search domains [rhel-9.4.z]
+# For RHEL-17961 - [RHEL-9] cloud-init fails to configure DNS search domains
 Patch19:              ci-feat-sysconfig-Add-DNS-from-interface-config-to-reso.patch
-# For RHEL-50562 - [Cloud-init] [RHEL-9.4] Password reset feature broken with CloudstackDataSource
-Patch20:              ci-fix-Clean-cache-if-no-datasource-fallback-5499.patch
-Patch21:              future-backport.patch
-Patch22:              0001-Remove-rh-subscription.patch
+# For RHEL-44337 - [rhel-9] fix `SUDO` configuration schema for users and groups
+Patch20:              ci-fix-jsonschema-Add-missing-sudo-definition-5418.patch
+# For RHEL-44337 - [rhel-9] fix `SUDO` configuration schema for users and groups
+Patch21:              ci-doc-update-examples-to-reflect-alternative-ways-to-p.patch
+# For RHEL-44598 - fix pylint error and support python 3.12
+Patch22:              ci-fix-dhcp-Guard-against-FileNotFoundError-and-NameErr.patch
+# For RHEL-44598 - fix pylint error and support python 3.12
+Patch23:              ci-fix-Address-TIOBE-abstract-interpretation-issues-486.patch
+# For RHEL-44598 - fix pylint error and support python 3.12
+Patch24:              ci-Update-pylint-version-to-support-python-3.12-5338.patch
+# For RHEL-45262 - Deprecate the users ssh-authorized-keys property and permit deprecated hyphenated keys under users key
+Patch25:              ci-Deprecate-the-users-ssh-authorized-keys-property-516.patch
+# For RHEL-45262 - Deprecate the users ssh-authorized-keys property and permit deprecated hyphenated keys under users key
+Patch26:              ci-docs-Add-deprecated-system_info-to-schema-5168.patch
+# For RHEL-45262 - Deprecate the users ssh-authorized-keys property and permit deprecated hyphenated keys under users key
+Patch27:              ci-fix-schema-permit-deprecated-hyphenated-keys-under-u.patch
+# For RHEL-44916 - [RFE] Support metalink in yum repository config
+Patch28:              ci-Support-metalink-in-yum-repository-config-5444.patch
+# For RHEL-46194 - [RHEL-9] It leaves the ipv6 networking config as blank in NM keyfile when config dhcp ipv6 with customization spec
+Patch29:              ci-fix-vmware-Set-IPv6-to-dhcp-when-there-is-no-IPv6-ad.patch
+# For RHEL-46873 - Suggest to update schema to support metalink
+Patch30:              ci-fix-add-schema-rules-for-baseurl-and-metalink-in-yum.patch
+# For RHEL-49736 - [Cloud-init] [RHEL-9] Password reset feature broken with CloudstackDataSource
+Patch31:              ci-fix-Clean-cache-if-no-datasource-fallback-5499.patch
+# For RHEL-49674 - Support setting mirrorlist in yum repository config
+Patch32:              ci-Support-setting-mirrorlist-in-yum-repository-config-.patch
+# For RHEL-54373 - [RHEL9]Revert "fix(vmware): Set IPv6 to dhcp when there is no IPv6 addr (#5471)"
+Patch33:              ci-Revert-fix-vmware-Set-IPv6-to-dhcp-when-there-is-no-.patch
+# For RHEL-54686 - [RHEL-9.5] cloud-init schema validation fails.
+Patch34:              ci-fix-Add-subnet-ipv4-ipv6-to-network-schema-5191.patch
+Patch35:              future-backport.patch
+Patch36:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -54,8 +82,6 @@ BuildRequires:        iproute
 BuildRequires:        python3-configobj
 # https://bugzilla.redhat.com/show_bug.cgi?id=1695953
 BuildRequires:        python3-distro
-# https://bugzilla.redhat.com/show_bug.cgi?id=1417029
-BuildRequires:        python3-httpretty >= 0.8.14-2
 BuildRequires:        python3-jinja2
 BuildRequires:        python3-jsonpatch
 BuildRequires:        python3-oauthlib
@@ -257,42 +283,89 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue Sep 03 2024 Release Engineering <releng@openela.org> - 23.4.0.2
+* Tue Nov 12 2024 Release Engineering <releng@openela.org> - 23.4.0.2
 - Apply OpenELA fixes
 
-* Fri Jul 26 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el9_4.6
-- ci-fix-Clean-cache-if-no-datasource-fallback-5499.patch [RHEL-50562]
-- Resolves: RHEL-50562
-  ([Cloud-init] [RHEL-9.4] Password reset feature broken with CloudstackDataSource)
+* Mon Aug 26 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-19
+- ci-fix-Add-subnet-ipv4-ipv6-to-network-schema-5191.patch [RHEL-54686]
+- Resolves: RHEL-54686
+  ([RHEL-9.5] cloud-init schema validation fails.)
 
-* Mon Jul 08 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el9_4.5
-- ci-feat-sysconfig-Add-DNS-from-interface-config-to-reso.patch [RHEL-46012]
-- Resolves: RHEL-46012
-  ([RHEL-9] cloud-init fails to configure DNS search domains [rhel-9.4.z])
+* Mon Aug 19 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-18
+- ci-Revert-fix-vmware-Set-IPv6-to-dhcp-when-there-is-no-.patch [RHEL-54373]
+- Resolves: RHEL-54373
+  ([RHEL9]Revert "fix(vmware): Set IPv6 to dhcp when there is no IPv6 addr (#5471)")
 
-* Mon Jun 17 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el9_4.4
-- ci-fix-cloudstack-Use-parsed-lease-file-for-virtual-rou.patch [RHEL-40419]
-- Resolves: RHEL-40419
-  ([Cloud-init] CloudstackDataSource cannot work with NetworkManager [rhel-9.4.z])
+* Thu Jul 25 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-17
+- ci-fix-Clean-cache-if-no-datasource-fallback-5499.patch [RHEL-49736]
+- ci-Support-setting-mirrorlist-in-yum-repository-config-.patch [RHEL-49674]
+- Resolves: RHEL-49736
+  ([Cloud-init] [RHEL-9] Password reset feature broken with CloudstackDataSource)
+- Resolves: RHEL-49674
+  (Support setting mirrorlist in yum repository config)
 
-* Mon May 20 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el9_4.3
-- ci-fix-Always-use-single-datasource-if-specified-5098.patch [RHEL-36700]
-- Resolves: RHEL-36700
-  (DataSourceNoCloudNet not configurable via config files [rhel-9.4.z])
+* Fri Jul 12 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-16
+- ci-fix-add-schema-rules-for-baseurl-and-metalink-in-yum.patch [RHEL-46873]
+- Resolves: RHEL-46873
+  (Suggest to update schema to support metalink)
 
-* Fri Apr 19 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el9_4.2
-- ci-fix-Fall-back-to-cached-local-ds-if-no-valid-ds-foun.patch [RHEL-32845]
-- Resolves: RHEL-32845
-  ([cloud-init][ESXi]VMware datasource resets on every boot causing it to lose network configuration [rhel-9.4.z])
+* Mon Jul 08 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-15
+- ci-Support-metalink-in-yum-repository-config-5444.patch [RHEL-44916]
+- ci-fix-vmware-Set-IPv6-to-dhcp-when-there-is-no-IPv6-ad.patch [RHEL-46194]
+- Resolves: RHEL-44916
+  ([RFE] Support metalink in yum repository config)
+- Resolves: RHEL-46194
+  ([RHEL-9] It leaves the ipv6 networking config as blank in NM keyfile when config dhcp ipv6 with customization spec)
 
-* Tue Apr 09 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el9_4.1
-- ci-fix-Correct-v2-NetworkManager-route-rendering-463.patch [RHEL-29558]
-- ci-feat-apply-global-DNS-to-interfaces-in-network-mana.patch [RHEL-29558]
-- ci-fix-Undeprecate-network-in-schema-route-definition.patch [RHEL-29718]
-- Resolves: RHEL-29558
-  ([rhel-9]cloud-init fails to configure DNS/search domains for network-config v1 [rhel-9.4.0.z])
-- Resolves: RHEL-29718
-  (Suggest to backport patch ff40d1a to undeprecate 'network' in schema route definition [rhel-9.4.0.z])
+* Mon Jul 01 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-14
+- ci-Deprecate-the-users-ssh-authorized-keys-property-516.patch [RHEL-45262]
+- ci-docs-Add-deprecated-system_info-to-schema-5168.patch [RHEL-45262]
+- ci-fix-schema-permit-deprecated-hyphenated-keys-under-u.patch [RHEL-45262]
+- Resolves: RHEL-45262
+  (Deprecate the users ssh-authorized-keys property and permit deprecated hyphenated keys under users key)
+
+* Tue Jun 25 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-13
+- ci-feat-sysconfig-Add-DNS-from-interface-config-to-reso.patch [RHEL-17961]
+- ci-fix-jsonschema-Add-missing-sudo-definition-5418.patch [RHEL-44337]
+- ci-doc-update-examples-to-reflect-alternative-ways-to-p.patch [RHEL-44337]
+- ci-fix-dhcp-Guard-against-FileNotFoundError-and-NameErr.patch [RHEL-44598]
+- ci-fix-Address-TIOBE-abstract-interpretation-issues-486.patch [RHEL-44598]
+- ci-Update-pylint-version-to-support-python-3.12-5338.patch [RHEL-44598]
+- Resolves: RHEL-17961
+  ([RHEL-9] cloud-init fails to configure DNS search domains)
+- Resolves: RHEL-44337
+  ([rhel-9] fix `SUDO` configuration schema for users and groups)
+- Resolves: RHEL-44598
+  (fix pylint error and support python 3.12)
+
+* Mon Jun 17 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-12
+- ci-fix-cloudstack-Use-parsed-lease-file-for-virtual-rou.patch [RHEL-40217]
+- Resolves: RHEL-40217
+  ([Cloud-init] CloudstackDataSource cannot work with NetworkManager)
+
+* Thu May 16 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-11
+- ci-fix-Always-use-single-datasource-if-specified-5098.patch [RHEL-36255]
+- Resolves: RHEL-36255
+  ([rhel-9.5] DataSourceNoCloudNet not configurable via config files)
+
+* Mon Apr 29 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-10
+- ci-Remove-dependency-on-python3-httpretty.patch [RHEL-33973]
+- Resolves: RHEL-33973
+  ([RFE] Remove dependency on python3-httpretty)
+
+* Mon Apr 22 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-9
+- ci-fix-Fall-back-to-cached-local-ds-if-no-valid-ds-foun.patch [RHEL-32846]
+- Resolves: RHEL-32846
+  ([cloud-init][ESXi]VMware datasource resets on every boot causing it to lose network configuration [rhel-9])
+
+* Mon Apr 08 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-8
+- ci-fix-Correct-v2-NetworkManager-route-rendering-4637.patch [RHEL-20964]
+- ci-feat-apply-global-DNS-to-interfaces-in-network-manag.patch [RHEL-20964]
+- ci-fix-Undeprecate-network-in-schema-route-definition-5.patch [RHEL-29709]
+- Resolves: RHEL-20964
+  ([rhel-9]cloud-init fails to configure DNS/search domains for network-config v1)
+- Resolves: RHEL-29709
+  (Suggest to backport patch ff40d1a to undeprecate 'network' in schema route definition)
 
 * Thu Mar 14 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7
 - ci-Retain-exit-code-in-cloud-init-status-for-recoverabl.patch [RHEL-28549]

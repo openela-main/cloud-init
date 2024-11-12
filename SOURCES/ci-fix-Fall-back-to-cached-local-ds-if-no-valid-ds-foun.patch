@@ -1,14 +1,15 @@
-From a06b585ef6a9f425a7ce814254e40f214969f665 Mon Sep 17 00:00:00 2001
+From cf35040b46abb66c7239d156bd92c7267d7c40f7 Mon Sep 17 00:00:00 2001
 From: PengpengSun <40026211+PengpengSun@users.noreply.github.com>
 Date: Fri, 29 Mar 2024 22:39:13 +0800
 Subject: [PATCH] fix: Fall back to cached local ds if no valid ds found
  (#4997)
 
 RH-Author: Ani Sinha <anisinha@redhat.com>
-RH-MergeRequest: 131: fix: Fall back to cached local ds if no valid ds found (#4997)
-RH-Jira: RHEL-32845
+RH-MergeRequest: 75: fix: Fall back to cached local ds if no valid ds found (#4997)
+RH-Jira: RHEL-32846
 RH-Acked-by: Cathy Avery <cavery@redhat.com>
-RH-Commit: [1/1] 50c0fd1eb1ed9c39b67b9d44fff31b51311ff1a7
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Commit: [1/1] 408c41fd8009255d98c31210ef936f2e68dfde75 (anisinha/cloud-init)
 
 Rebooting an instance which has finished VMware guest
 customization with DataSourceVMware will load
@@ -36,7 +37,7 @@ Conflicts:
  3 files changed, 53 insertions(+), 15 deletions(-)
 
 diff --git a/cloudinit/sources/DataSourceVMware.py b/cloudinit/sources/DataSourceVMware.py
-index 1591121d6..2d5d42eb3 100644
+index 1591121d..2d5d42eb 100644
 --- a/cloudinit/sources/DataSourceVMware.py
 +++ b/cloudinit/sources/DataSourceVMware.py
 @@ -197,7 +197,7 @@ class DataSourceVMware(sources.DataSource):
@@ -68,7 +69,7 @@ index 1591121d6..2d5d42eb3 100644
          for key_name in (
              "public-keys-data",
 diff --git a/cloudinit/sources/__init__.py b/cloudinit/sources/__init__.py
-index c207b5ed6..453801bec 100644
+index c207b5ed..453801be 100644
 --- a/cloudinit/sources/__init__.py
 +++ b/cloudinit/sources/__init__.py
 @@ -312,6 +312,10 @@ class DataSource(CloudInitPickleMixin, metaclass=abc.ABCMeta):
@@ -100,7 +101,7 @@ index c207b5ed6..453801bec 100644
      def _determine_dsmode(candidates, default=None, valid=None):
          # return the first candidate that is non None, warn if not valid
 diff --git a/cloudinit/stages.py b/cloudinit/stages.py
-index 3b6405f54..0b795624f 100644
+index 3b6405f5..0b795624 100644
 --- a/cloudinit/stages.py
 +++ b/cloudinit/stages.py
 @@ -353,20 +353,32 @@ class Init:
