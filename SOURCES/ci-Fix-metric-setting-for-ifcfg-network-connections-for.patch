@@ -1,0 +1,145 @@
+From 94c0cd9c656877250f7e5cfe05325a42bbdec182 Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Fri, 4 Oct 2024 02:38:23 +0530
+Subject: [PATCH 1/2] Fix metric setting for ifcfg network connections for rhel
+ (#5777)
+
+RH-Author: xiachen <xiachen@redhat.com>
+RH-MergeRequest: 145: Fix metric setting for ifcfg network connections for rhel (#5777)
+RH-Jira: RHEL-65018
+RH-Acked-by: Ani Sinha <anisinha@redhat.com>
+RH-Commit: [1/2] a18205f1ffa455a2ccd836ba6baa12b7da0afbde (xiachen/cloud-init)
+
+Most RHEL systems use Network manager to bring up manage network connections.
+Network manager does not recognize "METRIC" option for network connections.
+It uses IPV4_ROUTE_METRIC and IPV6_ROUTE_METRIC options. Please see
+https://people.freedesktop.org/~lkundrak/nm-docs/nm-settings-ifcfg-rh.html
+
+This change ensures that cloud-init generates ifcfg network connection files
+with IPV{4/6}_ROUTE_METRIC options that are compatible with RHEL and
+network manager.
+
+Fixes GH-5776
+
+(cherry picked from commit a399f4b0815234e3fe11255178c737902b2d243d)
+
+Signed-off-by: Amy Chen <xiachen@redhat.com>
+---
+ cloudinit/net/sysconfig.py  | 21 ++++++++++++++++++---
+ tests/unittests/test_net.py | 37 ++++++++++++++++++++-----------------
+ 2 files changed, 38 insertions(+), 20 deletions(-)
+
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index 7eb430ed1..b50a6a8a0 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -205,7 +205,7 @@ class Route(ConfigMap):
+                 )
+                 metric_key = "METRIC" + index
+                 if metric_key in self._conf:
+-                    metric_value = str(self._conf["METRIC" + index])
++                    metric_value = str(self._conf[metric_key])
+                     buf.write(
+                         "%s=%s\n"
+                         % ("METRIC" + str(reindex), _quote_value(metric_value))
+@@ -549,7 +549,12 @@ class Renderer(renderer.Renderer):
+             subnet_type = subnet.get("type")
+             # metric may apply to both dhcp and static config
+             if "metric" in subnet:
+-                if flavor != "suse":
++                if flavor == "rhel":
++                    if subnet_is_ipv6(subnet):
++                        iface_cfg["IPV6_ROUTE_METRIC"] = subnet["metric"]
++                    else:
++                        iface_cfg["IPV4_ROUTE_METRIC"] = subnet["metric"]
++                elif flavor != "suse":
+                     iface_cfg["METRIC"] = subnet["metric"]
+             if subnet_type in ["dhcp", "dhcp4"]:
+                 # On SUSE distros 'DHCLIENT_SET_DEFAULT_ROUTE' is a global
+@@ -656,7 +661,17 @@ class Renderer(renderer.Renderer):
+                             iface_cfg["GATEWAY"] = route["gateway"]
+                             route_cfg.has_set_default_ipv4 = True
+                     if "metric" in route:
+-                        iface_cfg["METRIC"] = route["metric"]
++                        if flavor == "rhel":
++                            if subnet_is_ipv6(subnet):
++                                iface_cfg["IPV6_ROUTE_METRIC"] = route[
++                                    "metric"
++                                ]
++                            else:
++                                iface_cfg["IPV4_ROUTE_METRIC"] = route[
++                                    "metric"
++                                ]
++                        else:
++                            iface_cfg["METRIC"] = route["metric"]
+ 
+                 else:
+                     # add default routes only to ifcfg files, not
+diff --git a/tests/unittests/test_net.py b/tests/unittests/test_net.py
+index 2d716f4b5..4673e4eaf 100644
+--- a/tests/unittests/test_net.py
++++ b/tests/unittests/test_net.py
+@@ -1345,7 +1345,7 @@ NETWORK_CONFIGS = {
+                 HWADDR=c0:d6:9f:2c:e8:80
+                 IPADDR=192.168.21.3
+                 NETMASK=255.255.255.0
+-                METRIC=10000
++                IPV4_ROUTE_METRIC=10000
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no"""
+@@ -1521,7 +1521,7 @@ NETWORK_CONFIGS = {
+                 HWADDR=c0:d6:9f:2c:e8:80
+                 IPADDR=192.168.21.3
+                 NETMASK=255.255.255.0
+-                METRIC=10000
++                IPV4_ROUTE_METRIC=10000
+                 ONBOOT=yes
+                 TYPE=Ethernet
+                 USERCTL=no"""
+@@ -5725,24 +5725,27 @@ USERCTL=no
+                 }
+             },
+         }
+-        expected = {
+-            "ifcfg-eno1": textwrap.dedent(
+-                """\
+-                AUTOCONNECT_PRIORITY=120
+-                BOOTPROTO=dhcp
+-                DEVICE=eno1
+-                HWADDR=07-1c-c6-75-a4-be
+-                METRIC=100
+-                ONBOOT=yes
+-                TYPE=Ethernet
+-                USERCTL=no
+-                """
+-            ),
+-        }
+         for dhcp_ver in ("dhcp4", "dhcp6"):
++            expected = {
++                "ifcfg-eno1": textwrap.dedent(
++                    """\
++                    AUTOCONNECT_PRIORITY=120
++                    BOOTPROTO=dhcp
++                    DEVICE=eno1
++                    HWADDR=07-1c-c6-75-a4-be
++                    ONBOOT=yes
++                    TYPE=Ethernet
++                    USERCTL=no
++                    """
++                ),
++            }
+             v2data = copy.deepcopy(v2base)
+             if dhcp_ver == "dhcp6":
+-                expected["ifcfg-eno1"] += "IPV6INIT=yes\nDHCPV6C=yes\n"
++                expected[
++                    "ifcfg-eno1"
++                ] += "IPV6INIT=yes\nDHCPV6C=yes\nIPV6_ROUTE_METRIC=100\n"
++            else:
++                expected["ifcfg-eno1"] += "IPV4_ROUTE_METRIC=100\n"
+             v2data["ethernets"]["eno1"].update(
+                 {dhcp_ver: True, "{0}-overrides".format(dhcp_ver): overrides}
+             )
+-- 
+2.39.3
+

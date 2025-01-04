@@ -1,6 +1,6 @@
 Name:                 cloud-init
 Version:              23.4
-Release:              19%{?dist}.0.2
+Release:              19%{?dist}.4.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -67,8 +67,20 @@ Patch32:              ci-Support-setting-mirrorlist-in-yum-repository-config-.pa
 Patch33:              ci-Revert-fix-vmware-Set-IPv6-to-dhcp-when-there-is-no-.patch
 # For RHEL-54686 - [RHEL-9.5] cloud-init schema validation fails.
 Patch34:              ci-fix-Add-subnet-ipv4-ipv6-to-network-schema-5191.patch
-Patch35:              future-backport.patch
-Patch36:              0001-Remove-rh-subscription.patch
+# For RHEL-65018 - Configuring metric for default gateway is not working [rhel-9.5.z]
+Patch35:              ci-Fix-metric-setting-for-ifcfg-network-connections-for.patch
+# For RHEL-65018 - Configuring metric for default gateway is not working [rhel-9.5.z]
+Patch36:              ci-fix-python3.13-Fix-import-error-for-passlib-on-Pytho.patch
+# For RHEL-65021 - NoCloud - network_config bridges incorrectly configured [rhel-9.5.z]
+Patch37:              ci-fix-Render-bridges-correctly-for-v2-on-sysconfig-wit.patch
+# For RHEL-65021 - NoCloud - network_config bridges incorrectly configured [rhel-9.5.z]
+Patch38:              ci-fix-Render-v2-bridges-correctly-on-network-manager-w.patch
+# For RHEL-65778 - [RHEL-9] Prevent NM from handling DNS when network interfaces have DNS config [rhel-9.5.z]
+Patch39:              ci-Prevent-NM-from-handling-DNS-when-network-interfaces.patch
+# For RHEL-68409 - cloud-init fails to configure DNS and search domain [rhel-9.5.z]
+Patch40:              ci-refactor-Ensure-internal-DNS-state-same-for-v1-and-v.patch
+Patch41:              future-backport.patch
+Patch42:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -283,8 +295,30 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue Nov 12 2024 Release Engineering <releng@openela.org> - 23.4.0.2
+* Sat Jan 04 2025 Release Engineering <releng@openela.org> - 23.4.0.2
 - Apply OpenELA fixes
+
+* Wed Nov 27 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-19.el9_5.4
+- ci-refactor-Ensure-internal-DNS-state-same-for-v1-and-v.patch [RHEL-68409]
+- Resolves: RHEL-68409
+  (cloud-init fails to configure DNS and search domain [rhel-9.5.z])
+
+* Mon Nov 18 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-19.el9_5.3
+- ci-Prevent-NM-from-handling-DNS-when-network-interfaces.patch [RHEL-65778]
+- Resolves: RHEL-65778
+  ([RHEL-9] Prevent NM from handling DNS when network interfaces have DNS config [rhel-9.5.z])
+
+* Wed Nov 06 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-19.el9_5.2
+- ci-fix-Render-bridges-correctly-for-v2-on-sysconfig-wit.patch [RHEL-65021]
+- ci-fix-Render-v2-bridges-correctly-on-network-manager-w.patch [RHEL-65021]
+- Resolves: RHEL-65021
+  (NoCloud - network_config bridges incorrectly configured [rhel-9.5.z])
+
+* Thu Oct 31 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-19.el9_5.1
+- ci-Fix-metric-setting-for-ifcfg-network-connections-for.patch [RHEL-65018]
+- ci-fix-python3.13-Fix-import-error-for-passlib-on-Pytho.patch [RHEL-65018]
+- Resolves: RHEL-65018
+  (Configuring metric for default gateway is not working [rhel-9.5.z])
 
 * Mon Aug 26 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-19
 - ci-fix-Add-subnet-ipv4-ipv6-to-network-schema-5191.patch [RHEL-54686]

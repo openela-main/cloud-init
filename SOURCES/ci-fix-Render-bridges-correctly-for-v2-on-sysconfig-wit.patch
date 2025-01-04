@@ -1,0 +1,306 @@
+From 1df31428c87f08c790c300ba402318378cea8d65 Mon Sep 17 00:00:00 2001
+From: James Falcon <james.falcon@canonical.com>
+Date: Thu, 10 Oct 2024 23:19:28 -0500
+Subject: [PATCH 1/2] fix: Render bridges correctly for v2 on sysconfig with
+ set-name (#5674)
+
+RH-Author: xiachen <xiachen@redhat.com>
+RH-MergeRequest: 147: fix: Render bridges correctly for v2 on sysconfig with set-name (#5674)
+RH-Jira: RHEL-65021
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: Ani Sinha <anisinha@redhat.com>
+RH-Commit: [1/2] 7f7fce173ee9a3ba719fc36580fbce813c5bfbd0 (xiachen/cloud-init)
+
+When listing interfaces in v2 format, we should expect to be able to
+reference other interfaces using the name in the configuration, not
+the name the interface will eventually take. This was broken when
+using `set-name`.
+
+To fix this, we now store the configuration id alongside the eventual
+name, and reference that instead of the name.
+
+Fixes GH-5574
+
+(cherry picked from commit a8f69409e5cebf43767d3bb54fbad7ced1e8fc7b)
+Signed-off-by: Amy Chen <xiachen@redhat.com>
+---
+ cloudinit/net/eni.py           |  6 +++
+ cloudinit/net/network_state.py | 30 ++++-------
+ cloudinit/net/sysconfig.py     | 24 ++++++---
+ tests/unittests/test_net.py    | 96 ++++++++++++++++++++++++++++++++++
+ 4 files changed, 128 insertions(+), 28 deletions(-)
+
+diff --git a/cloudinit/net/eni.py b/cloudinit/net/eni.py
+index 486fa22dc..ac0306d6a 100644
+--- a/cloudinit/net/eni.py
++++ b/cloudinit/net/eni.py
+@@ -5,6 +5,7 @@ import glob
+ import logging
+ import os
+ import re
++from contextlib import suppress
+ from typing import Optional
+ 
+ from cloudinit import subp, util
+@@ -421,6 +422,11 @@ class Renderer(renderer.Renderer):
+         return content
+ 
+     def _render_iface(self, iface, render_hwaddress=False):
++        iface = copy.deepcopy(iface)
++
++        # Remove irrelevant keys
++        with suppress(KeyError):
++            iface.pop("config_id")
+         sections = []
+         subnets = iface.get("subnets", {})
+         accept_ra = iface.pop("accept-ra", None)
+diff --git a/cloudinit/net/network_state.py b/cloudinit/net/network_state.py
+index 14c57cdcc..226421bd0 100644
+--- a/cloudinit/net/network_state.py
++++ b/cloudinit/net/network_state.py
+@@ -411,6 +411,7 @@ class NetworkStateInterpreter:
+             wakeonlan = util.is_true(wakeonlan)
+         iface.update(
+             {
++                "config_id": command.get("config_id"),
+                 "name": command.get("name"),
+                 "type": command.get("type"),
+                 "mac_address": command.get("mac_address"),
+@@ -424,7 +425,8 @@ class NetworkStateInterpreter:
+                 "wakeonlan": wakeonlan,
+             }
+         )
+-        self._network_state["interfaces"].update({command.get("name"): iface})
++        iface_key = command.get("config_id", command.get("name"))
++        self._network_state["interfaces"].update({iface_key: iface})
+         self.dump_network_state()
+ 
+     @ensure_command_keys(["name", "vlan_id", "vlan_link"])
+@@ -712,6 +714,7 @@ class NetworkStateInterpreter:
+ 
+         for eth, cfg in command.items():
+             phy_cmd = {
++                "config_id": eth,
+                 "type": "physical",
+             }
+             match = cfg.get("match", {})
+@@ -800,28 +803,15 @@ class NetworkStateInterpreter:
+     def _v2_common(self, cfg) -> None:
+         LOG.debug("v2_common: handling config:\n%s", cfg)
+         for iface, dev_cfg in cfg.items():
+-            if "set-name" in dev_cfg:
+-                set_name_iface = dev_cfg.get("set-name")
+-                if set_name_iface:
+-                    iface = set_name_iface
+             if "nameservers" in dev_cfg:
+-                search = dev_cfg.get("nameservers").get("search", [])
+-                dns = dev_cfg.get("nameservers").get("addresses", [])
++                search = dev_cfg.get("nameservers").get("search")
++                dns = dev_cfg.get("nameservers").get("addresses")
+                 name_cmd = {"type": "nameserver"}
+-                if len(search) > 0:
+-                    name_cmd.update({"search": search})
+-                if len(dns) > 0:
+-                    name_cmd.update({"address": dns})
++                if search:
++                    name_cmd["search"] = search
++                if dns:
++                    name_cmd["address"] = dns
+                 self.handle_nameserver(name_cmd)
+-
+-                mac_address: Optional[str] = dev_cfg.get("match", {}).get(
+-                    "macaddress"
+-                )
+-                if mac_address:
+-                    real_if_name = find_interface_name_from_mac(mac_address)
+-                    if real_if_name:
+-                        iface = real_if_name
+-
+                 self._handle_individual_nameserver(name_cmd, iface)
+ 
+     def _handle_bond_bridge(self, command, cmd_type=None):
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index b50a6a8a0..e4a65187f 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -6,7 +6,7 @@ import io
+ import logging
+ import os
+ import re
+-from typing import Mapping, Optional
++from typing import Dict, Optional
+ 
+ from cloudinit import subp, util
+ from cloudinit.distros.parsers import networkmanager_conf, resolv_conf
+@@ -721,7 +721,7 @@ class Renderer(renderer.Renderer):
+     ):
+         physical_filter = renderer.filter_by_physical
+         for iface in network_state.iter_interfaces(physical_filter):
+-            iface_name = iface["name"]
++            iface_name = iface.get("config_id") or iface["name"]
+             iface_subnets = iface.get("subnets", [])
+             iface_cfg = iface_contents[iface_name]
+             route_cfg = iface_cfg.routes
+@@ -924,7 +924,9 @@ class Renderer(renderer.Renderer):
+         return out
+ 
+     @classmethod
+-    def _render_bridge_interfaces(cls, network_state, iface_contents, flavor):
++    def _render_bridge_interfaces(
++        cls, network_state: NetworkState, iface_contents, flavor
++    ):
+         bridge_key_map = {
+             old_k: new_k
+             for old_k, new_k in cls.cfg_key_maps[flavor].items()
+@@ -1005,23 +1007,29 @@ class Renderer(renderer.Renderer):
+ 
+     @classmethod
+     def _render_sysconfig(
+-        cls, base_sysconf_dir, network_state, flavor, templates=None
++        cls,
++        base_sysconf_dir,
++        network_state: NetworkState,
++        flavor,
++        templates=None,
+     ):
+         """Given state, return /etc/sysconfig files + contents"""
+         if not templates:
+             templates = cls.templates
+-        iface_contents: Mapping[str, NetInterface] = {}
++        iface_contents: Dict[str, NetInterface] = {}
+         for iface in network_state.iter_interfaces():
+             if iface["type"] == "loopback":
+                 continue
+-            iface_name = iface["name"]
+-            iface_cfg = NetInterface(iface_name, base_sysconf_dir, templates)
++            config_id: str = iface.get("config_id") or iface["name"]
++            iface_cfg = NetInterface(
++                iface["name"], base_sysconf_dir, templates
++            )
+             if flavor == "suse":
+                 iface_cfg.drop("DEVICE")
+                 # If type detection fails it is considered a bug in SUSE
+                 iface_cfg.drop("TYPE")
+             cls._render_iface_shared(iface, iface_cfg, flavor)
+-            iface_contents[iface_name] = iface_cfg
++            iface_contents[config_id] = iface_cfg
+         cls._render_physical_interfaces(network_state, iface_contents, flavor)
+         cls._render_bond_interfaces(network_state, iface_contents, flavor)
+         cls._render_vlan_interfaces(network_state, iface_contents, flavor)
+diff --git a/tests/unittests/test_net.py b/tests/unittests/test_net.py
+index 4673e4eaf..004da81ab 100644
+--- a/tests/unittests/test_net.py
++++ b/tests/unittests/test_net.py
+@@ -4489,6 +4489,95 @@ iface bond0 inet6 static
+         """
+         ),
+     },
++    "v2-bridges-set-name": {
++        "yaml": textwrap.dedent(
++            """\
++            version: 2
++            ethernets:
++              baremetalport:
++                match:
++                  macaddress: 52:54:00:bd:8f:cb
++                set-name: baremetal0
++              provisioningport:
++                match:
++                  macaddress: 52:54:00:25:ae:12
++                set-name: provisioning0
++            bridges:
++              baremetal:
++                addresses:
++                  - fc00:1:1::2/64
++                interfaces:
++                  - baremetalport
++              provisioning:
++                addresses:
++                  - fc00:1:2::2/64
++                interfaces:
++                  - provisioningport
++            """
++        ),
++        "expected_sysconfig_rhel": {
++            "ifcfg-baremetal": textwrap.dedent(
++                """\
++                # Created by cloud-init automatically, do not edit.
++                #
++                AUTOCONNECT_PRIORITY=120
++                BOOTPROTO=none
++                DEVICE=baremetal
++                IPV6ADDR=fc00:1:1::2/64
++                IPV6INIT=yes
++                IPV6_AUTOCONF=no
++                IPV6_FORCE_ACCEPT_RA=no
++                ONBOOT=yes
++                TYPE=Bridge
++                USERCTL=no
++                """
++            ),
++            "ifcfg-baremetal0": textwrap.dedent(
++                """\
++                # Created by cloud-init automatically, do not edit.
++                #
++                AUTOCONNECT_PRIORITY=120
++                BOOTPROTO=none
++                BRIDGE=baremetal
++                DEVICE=baremetal0
++                HWADDR=52:54:00:bd:8f:cb
++                ONBOOT=yes
++                TYPE=Ethernet
++                USERCTL=no
++                """
++            ),
++            "ifcfg-provisioning": textwrap.dedent(
++                """\
++                # Created by cloud-init automatically, do not edit.
++                #
++                AUTOCONNECT_PRIORITY=120
++                BOOTPROTO=none
++                DEVICE=provisioning
++                IPV6ADDR=fc00:1:2::2/64
++                IPV6INIT=yes
++                IPV6_AUTOCONF=no
++                IPV6_FORCE_ACCEPT_RA=no
++                ONBOOT=yes
++                TYPE=Bridge
++                USERCTL=no
++                """
++            ),
++            "ifcfg-provisioning0": textwrap.dedent(
++                """\
++                # Created by cloud-init automatically, do not edit.
++                #
++                AUTOCONNECT_PRIORITY=120
++                BOOTPROTO=none
++                BRIDGE=provisioning
++                DEVICE=provisioning0
++                HWADDR=52:54:00:25:ae:12
++                ONBOOT=yes
++                TYPE=Ethernet
++                USERCTL=no
++                """
++            ),
++        },
++    },
+ }
+ 
+ 
+@@ -5558,6 +5647,13 @@ USERCTL=no
+         self._compare_files_to_expected(entry[self.expected_name], found)
+         self._assert_headers(found)
+ 
++    def test_bridges_set_name_config(self):
++        entry = NETWORK_CONFIGS["v2-bridges-set-name"]
++        found = self._render_and_read(network_config=yaml.load(entry["yaml"]))
++        self._compare_files_to_expected(
++            entry[self.expected_name], found)
++        self._assert_headers(found)
++
+     def test_netplan_dhcp_false_disable_dhcp_in_state(self):
+         """netplan config with dhcp[46]: False should not add dhcp in state"""
+         net_config = yaml.load(NETPLAN_DHCP_FALSE)
+-- 
+2.39.3
+

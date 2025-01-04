@@ -1,0 +1,91 @@
+From 9a3c16dc89d2813c90df2e57e71ae5df704083be Mon Sep 17 00:00:00 2001
+From: James Falcon <james.falcon@canonical.com>
+Date: Tue, 9 Jan 2024 10:32:12 -0600
+Subject: [PATCH] refactor: Ensure internal DNS state same for v1 and v2
+ (#4756)
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 152: refactor: Ensure internal DNS state same for v1 and v2 (#4756)
+RH-Jira: RHEL-68409
+RH-Acked-by: xiachen <xiachen@redhat.com>
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Commit: [1/1] f006996f7b418103ffaf73ff9ded5b5d149bedf6
+
+When defining interface-level DNS on the network state, v1 uses the
+"nameservers" key whereas v2 was using an "addresses" key.
+This commit updates the v2 parsing to set the key as "nameservers".
+
+Also update networkd renderer as this was only renderer using the v2
+"addresses" key.
+
+(cherry picked from commit 436e6f5ce3fbb8b391a2158538873644058904e6)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/net/network_state.py            |  2 +-
+ cloudinit/net/networkd.py                 | 13 ++++---------
+ tests/unittests/net/test_network_state.py |  5 ++++-
+ 3 files changed, 9 insertions(+), 11 deletions(-)
+
+diff --git a/cloudinit/net/network_state.py b/cloudinit/net/network_state.py
+index 226421bd0..82c3bf894 100644
+--- a/cloudinit/net/network_state.py
++++ b/cloudinit/net/network_state.py
+@@ -336,7 +336,7 @@ class NetworkStateInterpreter:
+             if iface:
+                 nameservers, search = dns
+                 iface["dns"] = {
+-                    "addresses": nameservers,
++                    "nameservers": nameservers,
+                     "search": search,
+                 }
+ 
+diff --git a/cloudinit/net/networkd.py b/cloudinit/net/networkd.py
+index 0978849c8..29f466eda 100644
+--- a/cloudinit/net/networkd.py
++++ b/cloudinit/net/networkd.py
+@@ -221,12 +221,6 @@ class Renderer(renderer.Renderer):
+     def parse_dns(self, iface, cfg: CfgParser, ns: NetworkState):
+         sec = "Network"
+ 
+-        dns_cfg_map = {
+-            "search": "Domains",
+-            "nameservers": "DNS",
+-            "addresses": "DNS",
+-        }
+-
+         dns = iface.get("dns")
+         if not dns and ns.version == 1:
+             dns = {
+@@ -236,9 +230,10 @@ class Renderer(renderer.Renderer):
+         elif not dns and ns.version == 2:
+             return
+ 
+-        for k, v in dns_cfg_map.items():
+-            if k in dns and dns[k]:
+-                cfg.update_section(sec, v, " ".join(dns[k]))
++        if dns.get("search"):
++            cfg.update_section(sec, "Domains", " ".join(dns["search"]))
++        if dns.get("nameservers"):
++            cfg.update_section(sec, "DNS", " ".join(dns["nameservers"]))
+ 
+     def parse_dhcp_overrides(self, cfg: CfgParser, device, dhcp, version):
+         dhcp_config_maps = {
+diff --git a/tests/unittests/net/test_network_state.py b/tests/unittests/net/test_network_state.py
+index 7d304ca3a..74a6bb34c 100644
+--- a/tests/unittests/net/test_network_state.py
++++ b/tests/unittests/net/test_network_state.py
+@@ -258,7 +258,10 @@ class TestNetworkStateParseNameservers:
+         # If an interface was specified, DNS should be part of the interface
+         for iface in config.iter_interfaces():
+             if iface["name"] == "eth1":
+-                assert iface["dns"]["addresses"] == ["192.168.1.1", "8.8.8.8"]
++                assert iface["dns"]["nameservers"] == [
++                    "192.168.1.1",
++                    "8.8.8.8",
++                ]
+                 assert iface["dns"]["search"] == ["spam.local"]
+             else:
+                 assert "dns" not in iface
+-- 
+2.39.3
+
