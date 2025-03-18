@@ -1,6 +1,6 @@
 Name:                 cloud-init
 Version:              23.4
-Release:              19%{?dist}.4.0.2
+Release:              19%{?dist}.5.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -79,8 +79,10 @@ Patch38:              ci-fix-Render-v2-bridges-correctly-on-network-manager-w.pa
 Patch39:              ci-Prevent-NM-from-handling-DNS-when-network-interfaces.patch
 # For RHEL-68409 - cloud-init fails to configure DNS and search domain [rhel-9.5.z]
 Patch40:              ci-refactor-Ensure-internal-DNS-state-same-for-v1-and-v.patch
-Patch41:              future-backport.patch
-Patch42:              0001-Remove-rh-subscription.patch
+# For RHEL-79774 - [RHEL 9] Backport support for smbios datasource definition [rhel-9.5.z]
+Patch41:              ci-fix-nocloud-smbios-datasource-definition.patch
+Patch42:              future-backport.patch
+Patch43:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -295,8 +297,13 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Sat Jan 04 2025 Release Engineering <releng@openela.org> - 23.4.0.2
+* Tue Mar 18 2025 Release Engineering <releng@openela.org> - 23.4.0.2
 - Apply OpenELA fixes
+
+* Mon Feb 24 2025 Jon Maloy <jmaloy@redhat.com> - 23.4-19.el9_5.5
+- ci-fix-nocloud-smbios-datasource-definition.patch [RHEL-79774]
+- Resolves: RHEL-79774
+  ([RHEL 9] Backport support for smbios datasource definition [rhel-9.5.z])
 
 * Wed Nov 27 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-19.el9_5.4
 - ci-refactor-Ensure-internal-DNS-state-same-for-v1-and-v.patch [RHEL-68409]

@@ -1,0 +1,103 @@
+From 75e658591f6187f73eb0baa3291bde01db62cc5e Mon Sep 17 00:00:00 2001
+From: Brett Holman <brett.holman@canonical.com>
+Date: Fri, 23 Feb 2024 11:16:15 -0700
+Subject: [PATCH] fix(nocloud): smbios datasource definition
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 154: fix(nocloud): smbios datasource definition
+RH-Jira: RHEL-79774
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: Jon Maloy <jmaloy@redhat.com>
+RH-Commit: [1/1] 3ce501f6167ffafcb6dea7df37589d348039a371
+
+deprecate nocloud-net name
+
+(cherry picked from commit 66b5ce9d5f94c0c6625972fdfdca3796d365b069)
+---
+ cloudinit/sources/DataSourceNoCloud.py | 39 ++++++++++++++++++++++----
+ cloudinit/sources/__init__.py          | 11 +++++---
+ 2 files changed, 41 insertions(+), 9 deletions(-)
+
+diff --git a/cloudinit/sources/DataSourceNoCloud.py b/cloudinit/sources/DataSourceNoCloud.py
+index 55a16638..7581f0a5 100644
+--- a/cloudinit/sources/DataSourceNoCloud.py
++++ b/cloudinit/sources/DataSourceNoCloud.py
+@@ -11,6 +11,7 @@
+ import errno
+ import logging
+ import os
++from functools import partial
+ 
+ from cloudinit import dmi, sources, util
+ from cloudinit.net import eni
+@@ -368,12 +369,40 @@ class DataSourceNoCloudNet(DataSourceNoCloud):
+         self.supported_seed_starts = ("http://", "https://")
+ 
+     def ds_detect(self):
+-        """NoCloud requires "nocloud-net" as the way to specify
+-        seeding from an http(s) address. This diverges from all other
+-        datasources in that it does a kernel commandline match on something
+-        other than the datasource dsname for only DEP_NETWORK.
++        """Check dmi and kernel commandline for dsname
++
++        NoCloud historically used "nocloud-net" as its dsname
++        for network timeframe (DEP_NETWORK), which supports http(s) urls.
++        For backwards compatiblity, check for that dsname.
+         """
+-        return "nocloud-net" == sources.parse_cmdline()
++        log_deprecated = partial(
++            util.deprecate,
++            deprecated="The 'nocloud-net' datasource name",
++            deprecated_version="24.1",
++            extra_message=(
++                "Use 'nocloud' instead, which uses the seedfrom protocol"
++                "scheme (http// or file://) to decide how to run."
++            ),
++        )
++
++        if "nocloud-net" == sources.parse_cmdline():
++            log_deprecated()
++            return True
++
++        serial = sources.parse_cmdline_or_dmi(
++            dmi.read_dmi_data("system-serial-number") or ""
++        ).lower()
++
++        if serial in (self.dsname.lower(), "nocloud-net"):
++            LOG.debug(
++                "Machine is configured by dmi serial number to run on "
++                "single datasource %s.",
++                self,
++            )
++            if serial == "nocloud-net":
++                log_deprecated()
++            return True
++        return False
+ 
+ 
+ # Used to match classes to dependencies
+diff --git a/cloudinit/sources/__init__.py b/cloudinit/sources/__init__.py
+index 453801be..e89af3d0 100644
+--- a/cloudinit/sources/__init__.py
++++ b/cloudinit/sources/__init__.py
+@@ -1198,10 +1198,13 @@ def parse_cmdline() -> str:
+     """Check if command line argument for this datasource was passed
+     Passing by command line overrides runtime datasource detection
+     """
+-    cmdline = util.get_cmdline()
+-    ds_parse_0 = re.search(r"ds=([^\s;]+)", cmdline)
+-    ds_parse_1 = re.search(r"ci\.ds=([^\s;]+)", cmdline)
+-    ds_parse_2 = re.search(r"ci\.datasource=([^\s;]+)", cmdline)
++    return parse_cmdline_or_dmi(util.get_cmdline())
++
++
++def parse_cmdline_or_dmi(input: str) -> str:
++    ds_parse_0 = re.search(r"(?:^|\s)ds=([^\s;]+)", input)
++    ds_parse_1 = re.search(r"(?:^|\s)ci\.ds=([^\s;]+)", input)
++    ds_parse_2 = re.search(r"(?:^|\s)ci\.datasource=([^\s;]+)", input)
+     ds = ds_parse_0 or ds_parse_1 or ds_parse_2
+     deprecated = ds_parse_1 or ds_parse_2
+     if deprecated:
+-- 
+2.48.1
+
