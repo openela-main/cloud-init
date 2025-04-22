@@ -1,0 +1,35 @@
+From 6fc0b92ef5dac36e9def584ba90c1ed813f21752 Mon Sep 17 00:00:00 2001
+From: Brett Holman <brett.holman@canonical.com>
+Date: Tue, 5 Dec 2023 16:40:03 -0700
+Subject: [PATCH 2/2] fix(python3.13): Fix import error for passlib on Python
+ 3.13 (#4669)
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 155: fix(rh_subscription): add string type to org (#5453)
+RH-Jira: RHEL-81169
+RH-Acked-by: xiachen <xiachen@redhat.com>
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Commit: [2/2] 1742cf86b1a123053c5ced03d764b5deb76f93c8
+
+(cherry picked from commit 09b70436b3a0aae1fe24fdde6e8cdd7ee98d9c15)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/sources/DataSourceAzure.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cloudinit/sources/DataSourceAzure.py b/cloudinit/sources/DataSourceAzure.py
+index 11c14e20..4c5780f7 100644
+--- a/cloudinit/sources/DataSourceAzure.py
++++ b/cloudinit/sources/DataSourceAzure.py
+@@ -58,7 +58,7 @@ try:
+     )
+ except (ImportError, AttributeError):
+     try:
+-        import passlib
++        import passlib.hash
+ 
+         blowfish_hash = passlib.hash.sha512_crypt.hash
+     except ImportError:
+-- 
+2.48.1
+
