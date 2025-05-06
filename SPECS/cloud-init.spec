@@ -1,6 +1,6 @@
 Name:                 cloud-init
 Version:              23.4
-Release:              19%{?dist}.5.0.2
+Release:              19%{?dist}.6.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -81,8 +81,10 @@ Patch39:              ci-Prevent-NM-from-handling-DNS-when-network-interfaces.pa
 Patch40:              ci-refactor-Ensure-internal-DNS-state-same-for-v1-and-v.patch
 # For RHEL-79774 - [RHEL 9] Backport support for smbios datasource definition [rhel-9.5.z]
 Patch41:              ci-fix-nocloud-smbios-datasource-definition.patch
-Patch42:              future-backport.patch
-Patch43:              0001-Remove-rh-subscription.patch
+# For RHEL-81163 - Cloud-init fails to subscribe system if activation key 'org' is not an integer [rhel-9.5.z]
+Patch42:              ci-fix-rh_subscription-add-string-type-to-org-5453.patch
+Patch43:              future-backport.patch
+Patch44:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -297,8 +299,13 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue Mar 18 2025 Release Engineering <releng@openela.org> - 23.4.0.2
+* Tue May 06 2025 Release Engineering <releng@openela.org> - 23.4.0.2
 - Apply OpenELA fixes
+
+* Tue Apr 01 2025 Jon Maloy <jmaloy@redhat.com> - 23.4-19.el9_5.6
+- ci-fix-rh_subscription-add-string-type-to-org-5453.patch [RHEL-81163]
+- Resolves: RHEL-81163
+  (Cloud-init fails to subscribe system if activation key 'org' is not an integer [rhel-9.5.z])
 
 * Mon Feb 24 2025 Jon Maloy <jmaloy@redhat.com> - 23.4-19.el9_5.5
 - ci-fix-nocloud-smbios-datasource-definition.patch [RHEL-79774]
