@@ -1,6 +1,6 @@
 Name:                 cloud-init
-Version:              23.4
-Release:              19%{?dist}.6.0.2
+Version:              24.4
+Release:              4%{?dist}.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -8,83 +8,21 @@ Source0:              https://github.com/canonical/cloud-init/archive/refs/tags/
 Source1:              cloud-init-tmpfiles.conf
 
 # Source-git patches
-Patch1:               0001-Add-initial-redhat-changes.patch
-Patch2:               0002-Do-not-write-NM_CONTROLLED-no-in-generated-interface.patch
-Patch3:               0003-Setting-autoconnect-priority-setting-for-network-scr.patch
-Patch4:               0004-net-network_manager-do-not-set-may-fail-to-False-for.patch
-Patch5:               0005-net-allow-dhcp6-configuration-from-generate_fallback.patch
-Patch6:               0006-net-nm-check-for-presence-of-ifcfg-files-when-nm-con.patch
-Patch7:               0007-test-jsonschema-Pin-jsonschema-version-4781.patch
-Patch8:               0008-fix-clean-stop-warning-when-running-clean-command-47.patch
-# For RHEL-22255 - [Azure][RHEL-9] cloud-init-23.4 cannot read "- Azure" datasource_list format
-Patch9:               ci-Revert-Use-grep-for-faster-parsing-of-cloud-config-i.patch
-Patch10:              ci-Pin-pythes-8.0.0.patch
-# For RHEL-21324 - [rhel-9] The schema WARNING info for network-config.json is not suitable in cloud-init-23.4
-Patch11:              ci-fix-Add-types-to-network-v1-schema-4841.patch
-# For RHEL-28549 - [RHEL 9.4] cloud-init 23.4 returns 2 on recoverable errors instead of 0
-Patch12:              ci-Retain-exit-code-in-cloud-init-status-for-recoverabl.patch
-# For RHEL-20964 - [rhel-9]cloud-init fails to configure DNS/search domains for network-config v1
-Patch13:              ci-fix-Correct-v2-NetworkManager-route-rendering-4637.patch
-# For RHEL-20964 - [rhel-9]cloud-init fails to configure DNS/search domains for network-config v1
-Patch14:              ci-feat-apply-global-DNS-to-interfaces-in-network-manag.patch
-# For RHEL-29709 - Suggest to backport patch ff40d1a to undeprecate 'network' in schema route definition
-Patch15:              ci-fix-Undeprecate-network-in-schema-route-definition-5.patch
-# For RHEL-32846 - [cloud-init][ESXi]VMware datasource resets on every boot causing it to lose network configuration [rhel-9]
-Patch16:              ci-fix-Fall-back-to-cached-local-ds-if-no-valid-ds-foun.patch
-# For RHEL-36255 - [rhel-9.5] DataSourceNoCloudNet not configurable via config files
-Patch17:              ci-fix-Always-use-single-datasource-if-specified-5098.patch
-# For RHEL-40217 - [Cloud-init] CloudstackDataSource cannot work with NetworkManager
-Patch18:              ci-fix-cloudstack-Use-parsed-lease-file-for-virtual-rou.patch
-# For RHEL-17961 - [RHEL-9] cloud-init fails to configure DNS search domains
-Patch19:              ci-feat-sysconfig-Add-DNS-from-interface-config-to-reso.patch
-# For RHEL-44337 - [rhel-9] fix `SUDO` configuration schema for users and groups
-Patch20:              ci-fix-jsonschema-Add-missing-sudo-definition-5418.patch
-# For RHEL-44337 - [rhel-9] fix `SUDO` configuration schema for users and groups
-Patch21:              ci-doc-update-examples-to-reflect-alternative-ways-to-p.patch
-# For RHEL-44598 - fix pylint error and support python 3.12
-Patch22:              ci-fix-dhcp-Guard-against-FileNotFoundError-and-NameErr.patch
-# For RHEL-44598 - fix pylint error and support python 3.12
-Patch23:              ci-fix-Address-TIOBE-abstract-interpretation-issues-486.patch
-# For RHEL-44598 - fix pylint error and support python 3.12
-Patch24:              ci-Update-pylint-version-to-support-python-3.12-5338.patch
-# For RHEL-45262 - Deprecate the users ssh-authorized-keys property and permit deprecated hyphenated keys under users key
-Patch25:              ci-Deprecate-the-users-ssh-authorized-keys-property-516.patch
-# For RHEL-45262 - Deprecate the users ssh-authorized-keys property and permit deprecated hyphenated keys under users key
-Patch26:              ci-docs-Add-deprecated-system_info-to-schema-5168.patch
-# For RHEL-45262 - Deprecate the users ssh-authorized-keys property and permit deprecated hyphenated keys under users key
-Patch27:              ci-fix-schema-permit-deprecated-hyphenated-keys-under-u.patch
-# For RHEL-44916 - [RFE] Support metalink in yum repository config
-Patch28:              ci-Support-metalink-in-yum-repository-config-5444.patch
-# For RHEL-46194 - [RHEL-9] It leaves the ipv6 networking config as blank in NM keyfile when config dhcp ipv6 with customization spec
-Patch29:              ci-fix-vmware-Set-IPv6-to-dhcp-when-there-is-no-IPv6-ad.patch
-# For RHEL-46873 - Suggest to update schema to support metalink
-Patch30:              ci-fix-add-schema-rules-for-baseurl-and-metalink-in-yum.patch
-# For RHEL-49736 - [Cloud-init] [RHEL-9] Password reset feature broken with CloudstackDataSource
-Patch31:              ci-fix-Clean-cache-if-no-datasource-fallback-5499.patch
-# For RHEL-49674 - Support setting mirrorlist in yum repository config
-Patch32:              ci-Support-setting-mirrorlist-in-yum-repository-config-.patch
-# For RHEL-54373 - [RHEL9]Revert "fix(vmware): Set IPv6 to dhcp when there is no IPv6 addr (#5471)"
-Patch33:              ci-Revert-fix-vmware-Set-IPv6-to-dhcp-when-there-is-no-.patch
-# For RHEL-54686 - [RHEL-9.5] cloud-init schema validation fails.
-Patch34:              ci-fix-Add-subnet-ipv4-ipv6-to-network-schema-5191.patch
-# For RHEL-65018 - Configuring metric for default gateway is not working [rhel-9.5.z]
-Patch35:              ci-Fix-metric-setting-for-ifcfg-network-connections-for.patch
-# For RHEL-65018 - Configuring metric for default gateway is not working [rhel-9.5.z]
-Patch36:              ci-fix-python3.13-Fix-import-error-for-passlib-on-Pytho.patch
-# For RHEL-65021 - NoCloud - network_config bridges incorrectly configured [rhel-9.5.z]
-Patch37:              ci-fix-Render-bridges-correctly-for-v2-on-sysconfig-wit.patch
-# For RHEL-65021 - NoCloud - network_config bridges incorrectly configured [rhel-9.5.z]
-Patch38:              ci-fix-Render-v2-bridges-correctly-on-network-manager-w.patch
-# For RHEL-65778 - [RHEL-9] Prevent NM from handling DNS when network interfaces have DNS config [rhel-9.5.z]
-Patch39:              ci-Prevent-NM-from-handling-DNS-when-network-interfaces.patch
-# For RHEL-68409 - cloud-init fails to configure DNS and search domain [rhel-9.5.z]
-Patch40:              ci-refactor-Ensure-internal-DNS-state-same-for-v1-and-v.patch
-# For RHEL-79774 - [RHEL 9] Backport support for smbios datasource definition [rhel-9.5.z]
-Patch41:              ci-fix-nocloud-smbios-datasource-definition.patch
-# For RHEL-81163 - Cloud-init fails to subscribe system if activation key 'org' is not an integer [rhel-9.5.z]
-Patch42:              ci-fix-rh_subscription-add-string-type-to-org-5453.patch
-Patch43:              future-backport.patch
-Patch44:              0001-Remove-rh-subscription.patch
+Patch1:               0001-downstream-Add-initial-redhat-changes.patch
+Patch2:               0002-downstream-Setting-autoconnect-priority-setting-for-.patch
+Patch3:               0004-downstream-Revert-chore-eliminate-redundant-ordering.patch
+Patch4:               0005-downstream-remove-single-process-optimization.patch
+Patch5:               0006-fix-don-t-deadlock-when-starting-network-service-wit.patch
+# For RHEL-74334 - [rhel-9.6] Suggest to continue using sysconfig as the default network renderer in rhel-9.6
+Patch6:               ci-downstream-Revert-feat-Use-NetworkManager-renderer-b.patch
+# For RHEL-71122 - Suggest to change some log messages from warning to info after rebase cloud-init-24.4 [RHEL-9.6] 
+Patch7:               ci-Use-log_with_downgradable_level-for-user-password-wa.patch
+# For RHEL-71122 - Suggest to change some log messages from warning to info after rebase cloud-init-24.4 [RHEL-9.6] 
+Patch8:               ci-downstream-set-deprecation-boundary-version.patch
+# For RHEL-76361 - [c9s] cloud-init remove 'NOZEROCONF=yes' from /etc/sysconfig/network
+Patch9:               ci-net-sysconfig-do-not-remove-all-existing-settings-of.patch
+Patch10:              future-backport.patch
+Patch11:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -293,46 +231,52 @@ fi
 %{_datadir}/bash-completion/completions/cloud-init
 %{_bindir}/cloud-id
 %{_systemdgeneratordir}/cloud-init-generator
-%{_sysconfdir}/systemd/system/sshd-keygen@.service.d/disable-sshd-keygen-if-cloud-init-active.conf
+%{_unitdir}/sshd-keygen@.service.d/disable-sshd-keygen-if-cloud-init-active.conf
 
 %dir %{_sysconfdir}/rsyslog.d
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue May 06 2025 Release Engineering <releng@openela.org> - 23.4.0.2
+* Tue May 13 2025 Release Engineering <releng@openela.org> - 24.4.0.2
 - Apply OpenELA fixes
 
-* Tue Apr 01 2025 Jon Maloy <jmaloy@redhat.com> - 23.4-19.el9_5.6
-- ci-fix-rh_subscription-add-string-type-to-org-5453.patch [RHEL-81163]
-- Resolves: RHEL-81163
-  (Cloud-init fails to subscribe system if activation key 'org' is not an integer [rhel-9.5.z])
+* Mon Feb 17 2025 Jon Maloy <jmaloy@redhat.com> - 24.4-4
+- ci-net-sysconfig-do-not-remove-all-existing-settings-of.patch [RHEL-76361]
+- Resolves: RHEL-76361
+  ([c9s] cloud-init remove 'NOZEROCONF=yes' from /etc/sysconfig/network)
 
-* Mon Feb 24 2025 Jon Maloy <jmaloy@redhat.com> - 23.4-19.el9_5.5
-- ci-fix-nocloud-smbios-datasource-definition.patch [RHEL-79774]
-- Resolves: RHEL-79774
-  ([RHEL 9] Backport support for smbios datasource definition [rhel-9.5.z])
+* Mon Feb 10 2025 Jon Maloy <jmaloy@redhat.com> - 24.4-3
+- ci-Use-log_with_downgradable_level-for-user-password-wa.patch [RHEL-71122]
+- ci-downstream-set-deprecation-boundary-version.patch [RHEL-71122]
+- Resolves: RHEL-71122
+  (Suggest to change some log messages from warning to info after rebase cloud-init-24.4 [RHEL-9.6] )
 
-* Wed Nov 27 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-19.el9_5.4
-- ci-refactor-Ensure-internal-DNS-state-same-for-v1-and-v.patch [RHEL-68409]
-- Resolves: RHEL-68409
-  (cloud-init fails to configure DNS and search domain [rhel-9.5.z])
+* Mon Jan 20 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-2
+- ci-downstream-Revert-feat-Use-NetworkManager-renderer-b.patch [RHEL-74334]
+- Resolves: RHEL-74334
+  ([rhel-9.6] Suggest to continue using sysconfig as the default network renderer in rhel-9.6)
 
-* Mon Nov 18 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-19.el9_5.3
-- ci-Prevent-NM-from-handling-DNS-when-network-interfaces.patch [RHEL-65778]
-- Resolves: RHEL-65778
-  ([RHEL-9] Prevent NM from handling DNS when network interfaces have DNS config [rhel-9.5.z])
+* Mon Jan 06 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-1
+- Rebase to 24.4 [RHEL-66251]
+- Resolves: RHEL-66251
+  ([RHEL-9] Rebase cloud-init to 24.4 version)
 
-* Wed Nov 06 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-19.el9_5.2
-- ci-fix-Render-bridges-correctly-for-v2-on-sysconfig-wit.patch [RHEL-65021]
-- ci-fix-Render-v2-bridges-correctly-on-network-manager-w.patch [RHEL-65021]
-- Resolves: RHEL-65021
-  (NoCloud - network_config bridges incorrectly configured [rhel-9.5.z])
+* Mon Nov 18 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-22
+- ci-Prevent-NM-from-handling-DNS-when-network-interfaces.patch [RHEL-65768]
+- Resolves: RHEL-65768
+  ([RHEL-9] Prevent NM from handling DNS when network interfaces have DNS config)
 
-* Thu Oct 31 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-19.el9_5.1
-- ci-Fix-metric-setting-for-ifcfg-network-connections-for.patch [RHEL-65018]
-- ci-fix-python3.13-Fix-import-error-for-passlib-on-Pytho.patch [RHEL-65018]
-- Resolves: RHEL-65018
-  (Configuring metric for default gateway is not working [rhel-9.5.z])
+* Wed Nov 06 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-21
+- ci-fix-Render-bridges-correctly-for-v2-on-sysconfig-wit.patch [RHEL-38927]
+- ci-fix-Render-v2-bridges-correctly-on-network-manager-w.patch [RHEL-38927]
+- Resolves: RHEL-38927
+  (NoCloud - network_config bridges incorrectly configured)
+
+* Wed Oct 30 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-20
+- ci-Fix-metric-setting-for-ifcfg-network-connections-for.patch [RHEL-61224]
+- ci-fix-python3.13-Fix-import-error-for-passlib-on-Pytho.patch [RHEL-61224]
+- Resolves: RHEL-61224
+  (Configuring metric for default gateway is not working)
 
 * Mon Aug 26 2024 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-19
 - ci-fix-Add-subnet-ipv4-ipv6-to-network-schema-5191.patch [RHEL-54686]

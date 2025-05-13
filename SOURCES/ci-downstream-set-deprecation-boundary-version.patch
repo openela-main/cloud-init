@@ -1,0 +1,39 @@
+From 35baff0028c247e7bf491dbf8e90b303dc7f5388 Mon Sep 17 00:00:00 2001
+From: Amy Chen <xiachen@redhat.com>
+Date: Thu, 6 Feb 2025 15:52:01 +0800
+Subject: [PATCH 2/2] downstream: set deprecation boundary version
+
+RH-Author: xiachen <xiachen@redhat.com>
+RH-MergeRequest: 121: Use log_with_downgradable_level for user password warnings (#5927)
+RH-Jira: RHEL-71122
+RH-Acked-by: Ani Sinha <anisinha@redhat.com>
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Commit: [2/2] 9a6858da4c9364eab1e98f34cf3cac011e39e98e (xiachen/cloud-init-centos)
+
+Set features.DEPRECATION_INFO_BOUNDARY to 23.4,
+when the cloud-init version set at the callsite of
+log_with_downgradable_level() is newer than it,
+the log level is downgraded to DEBUG.
+
+X-downstream-only: true
+Signed-off-by: Amy Chen <xiachen@redhat.com>
+---
+ cloudinit/features.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cloudinit/features.py b/cloudinit/features.py
+index 4f9a59e99..5f8fee62d 100644
+--- a/cloudinit/features.py
++++ b/cloudinit/features.py
+@@ -87,7 +87,7 @@ On Debian and Ubuntu systems, cc_apt_configure will write a deb822 compatible
+ to write /etc/apt/sources.list directly.
+ """
+ 
+-DEPRECATION_INFO_BOUNDARY = "devel"
++DEPRECATION_INFO_BOUNDARY = "23.4"
+ """
+ DEPRECATION_INFO_BOUNDARY is used by distros to configure at which upstream
+ version to start logging deprecations at a level higher than INFO.
+-- 
+2.48.1
+

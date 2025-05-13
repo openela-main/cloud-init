@@ -1,0 +1,85 @@
+From 46e39514415041f51468b3e40059891dd42f028a Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Fri, 6 Dec 2024 16:53:25 +0530
+Subject: [PATCH] downstream: Revert "chore: eliminate redundant ordering
+ dependencies (#5819)"
+
+This reverts commit 0680d03304c34fc4c3081f29d99f140d507dd923.
+
+The reversal is necessary because the original change was meant to work with
+the 'single process optimization' patch. Since we are reverting the
+'single process optimization' (see next patch), we should revert this as well.
+
+Moreover, without the reversal, we get the following error from
+cloud-init-local:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3.9/site-packages/cloudinit/config/cc_set_hostname.py", line 86, in handle
+    cloud.distro.set_hostname(hostname, fqdn)
+  File "/usr/lib/python3.9/site-packages/cloudinit/distros/__init__.py", line 395, in set_hostname
+    self._write_hostname(writeable_hostname, self.hostname_conf_fn)
+  File "/usr/lib/python3.9/site-packages/cloudinit/distros/rhel.py", line 119, in _write_hostname
+    subp.subp(["hostnamectl", "set-hostname", str(hostname)])
+  File "/usr/lib/python3.9/site-packages/cloudinit/subp.py", line 291, in subp
+    raise ProcessExecutionError(
+cloudinit.subp.ProcessExecutionError: Unexpected error while running command.
+Command: ['hostnamectl', 'set-hostname', 'kvm-cloudinit-test']
+Exit code: 1
+Reason: -
+Stdout:
+Stderr: Failed to connect to bus: No such file or directory
+
+Jira: https://issues.redhat.com/browse/RHEL-70365
+X-downstream-only: true
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ systemd/cloud-init-local.service.tmpl | 5 +++++
+ systemd/cloud-init-main.service.tmpl  | 6 ++++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/systemd/cloud-init-local.service.tmpl b/systemd/cloud-init-local.service.tmpl
+index e6a300fd4..f6a6cce41 100644
+--- a/systemd/cloud-init-local.service.tmpl
++++ b/systemd/cloud-init-local.service.tmpl
+@@ -7,6 +7,10 @@ DefaultDependencies=no
+ {% endif %}
+ Wants=network-pre.target
+ After=hv_kvp_daemon.service
++{% if variant in ["almalinux", "cloudlinux", "rhel"] %}
++Requires=dbus.socket
++After=dbus.socket
++{% endif %}
+ Before=network-pre.target
+ Before=shutdown.target
+ {% if variant in ["almalinux", "cloudlinux", "rhel"] %}
+@@ -16,6 +20,7 @@ Before=firewalld.target
+ Before=sysinit.target
+ {% endif %}
+ Conflicts=shutdown.target
++RequiresMountsFor=/var/lib/cloud
+ ConditionPathExists=!/etc/cloud/cloud-init.disabled
+ ConditionKernelCommandLine=!cloud-init=disabled
+ ConditionEnvironment=!KERNEL_CMDLINE=cloud-init=disabled
+diff --git a/systemd/cloud-init-main.service.tmpl b/systemd/cloud-init-main.service.tmpl
+index b80f324fe..7a42a5746 100644
+--- a/systemd/cloud-init-main.service.tmpl
++++ b/systemd/cloud-init-main.service.tmpl
+@@ -8,12 +8,18 @@
+ # https://www.freedesktop.org/software/systemd/man/latest/systemd-remount-fs.service.html
+ [Unit]
+ Description=Cloud-init: Single Process
++Wants=network-pre.target
+ {% if variant in ["almalinux", "cloudlinux", "ubuntu", "unknown", "debian", "rhel"] %}
+ DefaultDependencies=no
+ {% endif %}
+ {% if variant in ["almalinux", "cloudlinux", "rhel"] %}
+ Requires=dbus.socket
+ After=dbus.socket
++Before=network.service
++Before=firewalld.target
++{% endif %}
++{% if variant in ["ubuntu", "unknown", "debian"] %}
++Before=sysinit.target
+ {% endif %}
+ 
+ After=systemd-remount-fs.service

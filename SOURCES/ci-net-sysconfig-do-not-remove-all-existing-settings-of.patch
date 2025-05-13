@@ -1,0 +1,144 @@
+From fe6b81e710c8e45652a1abe853b3537a61d44229 Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Sat, 15 Feb 2025 01:54:31 +0530
+Subject: [PATCH] net/sysconfig: do not remove all existing settings of
+ /etc/sysconfig/network (#5991)
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 124: net/sysconfig: do not remove all existing settings of /etc/sysconfig/network (#5991)
+RH-Jira: RHEL-76361
+RH-Acked-by: xiachen <xiachen@redhat.com>
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Commit: [1/1] 9c9d5a23d693103f93a4683512dfb9654aa39d77 (anisinha/cloud-init)
+
+In some distros, /etc/sysconfig/network may have important configurations that
+are necessary for the instance to come up. For example, centos based distros
+write NOZEROCONF=yes in /etc/sysconfig/network for some instances that require
+zeroconf to be disabled. Removing these customizations would prevent the
+instance to come up. So leave the customizations in /etc/sysconfig/network
+intact except those that we are interested in.
+
+Fixes GH-5990
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit fa331315d22f4bbe33320485e89a02bb2f695fbf)
+---
+ cloudinit/net/sysconfig.py                | 18 +++++++
+ tests/unittests/distros/test_netconfig.py | 62 ++++++++++++++++++++++-
+ 2 files changed, 78 insertions(+), 2 deletions(-)
+
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index 2151db3ab..bce307286 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -1119,6 +1119,24 @@ class Renderer(renderer.Renderer):
+             if network_state.use_ipv6:
+                 netcfg.append("NETWORKING_IPV6=yes")
+                 netcfg.append("IPV6_AUTOCONF=no")
++
++            # if sysconfig file exists and is not empty, append rest of the
++            # file content, do not remove the exsisting customizations.
++            if os.path.exists(sysconfig_path):
++                for line in util.load_text_file(sysconfig_path).splitlines():
++                    if (
++                        not any(
++                            setting in line
++                            for setting in [
++                                "NETWORKING",
++                                "NETWORKING_IPV6",
++                                "IPV6_AUTOCONF",
++                            ]
++                        )
++                        and line not in _make_header().splitlines()
++                    ):
++                        netcfg.append(line)
++
+             util.write_file(
+                 sysconfig_path, "\n".join(netcfg) + "\n", file_mode
+             )
+diff --git a/tests/unittests/distros/test_netconfig.py b/tests/unittests/distros/test_netconfig.py
+index 3768623f2..72887252d 100644
+--- a/tests/unittests/distros/test_netconfig.py
++++ b/tests/unittests/distros/test_netconfig.py
+@@ -691,12 +691,16 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+         return "/etc/sysconfig/network"
+ 
+     def _apply_and_verify(
+-        self, apply_fn, config, expected_cfgs=None, bringup=False
++        self,
++        apply_fn,
++        config,
++        expected_cfgs=None,
++        bringup=False,
++        tmpd=None,
+     ):
+         if not expected_cfgs:
+             raise ValueError("expected_cfg must not be None")
+ 
+-        tmpd = None
+         with mock.patch("cloudinit.net.sysconfig.available") as m_avail:
+             m_avail.return_value = True
+             with self.reRooted(tmpd) as tmpd:
+@@ -789,6 +793,60 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
+             expected_cfgs=expected_cfgs.copy(),
+         )
+ 
++    def test_sysconfig_network_no_overwite_ipv6_rh(self):
++        expected_cfgs = {
++            self.ifcfg_path("eth0"): dedent(
++                """\
++                AUTOCONNECT_PRIORITY=120
++                BOOTPROTO=none
++                DEFROUTE=yes
++                DEVICE=eth0
++                IPV6ADDR=2607:f0d0:1002:0011::2/64
++                IPV6INIT=yes
++                IPV6_AUTOCONF=no
++                IPV6_DEFAULTGW=2607:f0d0:1002:0011::1
++                IPV6_FORCE_ACCEPT_RA=no
++                ONBOOT=yes
++                TYPE=Ethernet
++                USERCTL=no
++                """
++            ),
++            self.ifcfg_path("eth1"): dedent(
++                """\
++                AUTOCONNECT_PRIORITY=120
++                BOOTPROTO=dhcp
++                DEVICE=eth1
++                ONBOOT=yes
++                TYPE=Ethernet
++                USERCTL=no
++                """
++            ),
++            self.control_path(): dedent(
++                """\
++                NETWORKING=yes
++                NETWORKING_IPV6=yes
++                IPV6_AUTOCONF=no
++                NOZEROCONF=yes
++                """
++            ),
++        }
++        tmpdir = self.tmp_dir()
++        file_mode = 0o644
++        # pre-existing config in /etc/sysconfig/network should not be removed
++        with self.reRooted(tmpdir) as tmpdir:
++            util.write_file(
++                self.control_path(),
++                "".join("NOZEROCONF=yes") + "\n",
++                file_mode,
++            )
++
++        self._apply_and_verify(
++            self.distro.apply_network_config,
++            V1_NET_CFG_IPV6,
++            expected_cfgs=expected_cfgs.copy(),
++            tmpd=tmpdir,
++        )
++
+     def test_vlan_render_unsupported(self):
+         """Render officially unsupported vlan names."""
+         cfg = {
+-- 
+2.48.1
+
