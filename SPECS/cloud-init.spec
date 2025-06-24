@@ -1,6 +1,6 @@
 Name:                 cloud-init
 Version:              24.4
-Release:              4%{?dist}.0.2
+Release:              4%{?dist}.1.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -21,8 +21,10 @@ Patch7:               ci-Use-log_with_downgradable_level-for-user-password-wa.pa
 Patch8:               ci-downstream-set-deprecation-boundary-version.patch
 # For RHEL-76361 - [c9s] cloud-init remove 'NOZEROCONF=yes' from /etc/sysconfig/network
 Patch9:               ci-net-sysconfig-do-not-remove-all-existing-settings-of.patch
-Patch10:              future-backport.patch
-Patch11:              0001-Remove-rh-subscription.patch
+# For RHEL-83636 - DataSourceNoCloudNet network configuration is ineffective [rhel-9.6.z]
+Patch10:              ci-fix-NM-reload-and-bring-up-individual-network-conns-.patch
+Patch11:              future-backport.patch
+Patch12:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -237,8 +239,13 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue May 13 2025 Release Engineering <releng@openela.org> - 24.4.0.2
+* Tue Jun 24 2025 Release Engineering <releng@openela.org> - 24.4.0.2
 - Apply OpenELA fixes
+
+* Thu Mar 20 2025 Jon Maloy <jmaloy@redhat.com> - 24.4-4.el9_6.1
+- ci-fix-NM-reload-and-bring-up-individual-network-conns-.patch [RHEL-83636]
+- Resolves: RHEL-83636
+  (DataSourceNoCloudNet network configuration is ineffective [rhel-9.6.z])
 
 * Mon Feb 17 2025 Jon Maloy <jmaloy@redhat.com> - 24.4-4
 - ci-net-sysconfig-do-not-remove-all-existing-settings-of.patch [RHEL-76361]
