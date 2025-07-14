@@ -1,6 +1,6 @@
 Name:                 cloud-init
 Version:              24.4
-Release:              4%{?dist}.1.0.2
+Release:              4%{?dist}.3.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -23,8 +23,13 @@ Patch8:               ci-downstream-set-deprecation-boundary-version.patch
 Patch9:               ci-net-sysconfig-do-not-remove-all-existing-settings-of.patch
 # For RHEL-83636 - DataSourceNoCloudNet network configuration is ineffective [rhel-9.6.z]
 Patch10:              ci-fix-NM-reload-and-bring-up-individual-network-conns-.patch
-Patch11:              future-backport.patch
-Patch12:              0001-Remove-rh-subscription.patch
+Patch11:              0003-downstream-Retain-exit-code-in-cloud-init-status-for.patch
+# For RHEL-100611 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-9.6.z]
+Patch12:              ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch
+# For RHEL-100611 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-9.6.z]
+Patch13:              ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch
+Patch14:              future-backport.patch
+Patch15:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -239,8 +244,18 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue Jun 24 2025 Release Engineering <releng@openela.org> - 24.4.0.2
+* Mon Jul 14 2025 Release Engineering <releng@openela.org> - 24.4.0.2
 - Apply OpenELA fixes
+
+* Thu Jul 03 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-4.el9_6.3
+- ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch [RHEL-100611]
+- ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch [RHEL-100611]
+- Resolves: RHEL-100611
+  (CVE-2024-6174 cloud-init: From CVEorg collector [rhel-9.6.z])
+
+* Thu Jul 03 2025  Miroslav Rezanina <mrezanin@redhat.com> - 24.4-4.el9_6.2
+- Adding missed fix 'Retain exit code in cloud-init status for recoverable errors'
+- Resolves: RHEL-101693
 
 * Thu Mar 20 2025 Jon Maloy <jmaloy@redhat.com> - 24.4-4.el9_6.1
 - ci-fix-NM-reload-and-bring-up-individual-network-conns-.patch [RHEL-83636]
