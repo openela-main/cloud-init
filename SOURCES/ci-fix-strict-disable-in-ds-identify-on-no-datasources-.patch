@@ -1,0 +1,89 @@
+From e095bbfa939a9ec61d4448a6f16370dd656dd30a Mon Sep 17 00:00:00 2001
+From: Chad Smith <chad.smith@canonical.com>
+Date: Tue, 24 Jun 2025 09:12:52 -0600
+Subject: [PATCH 2/2] fix: strict disable in ds-identify on no datasources
+ found
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 163: CVE-2024-6174: fix: Don't attempt to identify non-x86 OpenStack instances
+RH-Jira: RHEL-100606
+RH-Acked-by: xiachen <xiachen@redhat.com>
+RH-Commit: [2/2] 01f55ab3c476a47ca2f2d2ace4b81b9a8a17e5d9
+
+Take the CVE-2024-6174 strict detection fix one step further.
+
+Commit 8c3ae1b took a step to ignore DS_MAYBE datasource discovery.
+But, if no datasources are met the DS_FOUND conditions, ds-identify was
+still leaving cloud-init enabled. This resulted in cloud-init python
+code attempting to discover all datasources later in boot based on
+the default datasource_list.
+
+ds-identify will now assert that at least one datasource is found. If
+no datasources, ds-identify will exit 1 which disables cloud-init boot
+stages and results in no boot configuration operations from cloud-init.
+
+OpenStack images which cannot identify a valid datasource with DMI-data
+or kernel command line ci.ds=OpenStack parameter will need to either:
+- provide image-based configuration in either /etc/cloud/cloud.cfg.* to set
+   datasource_list: [ OpenStack ]
+- provide --config-drive true to openstack server create
+- attach a nocloud disk labelled CIDATA containing user-data and
+  meta-data files
+
+CVE-2024-6174
+LP: #2069607
+
+(cherry picked from commit e3f42adc2674a38fb29e414cfbf96f884934b2d2)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ tests/unittests/test_ds_identify.py | 6 ++++--
+ tools/ds-identify                   | 2 +-
+ 2 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/tests/unittests/test_ds_identify.py b/tests/unittests/test_ds_identify.py
+index c4f0115a8..3c8976167 100644
+--- a/tests/unittests/test_ds_identify.py
++++ b/tests/unittests/test_ds_identify.py
+@@ -60,7 +60,7 @@ BLKID_UEFI_UBUNTU = [
+ POLICY_FOUND_ONLY = "search,found=all,maybe=none,notfound=disabled"
+ POLICY_FOUND_OR_MAYBE = "search,found=all,maybe=none,notfound=disabled"
+ DI_DEFAULT_POLICY = "search,found=all,maybe=none,notfound=disabled"
+-DI_DEFAULT_POLICY_NO_DMI = "search,found=all,maybe=none,notfound=enabled"
++DI_DEFAULT_POLICY_NO_DMI = "search,found=all,maybe=none,notfound=disabled"
+ DI_EC2_STRICT_ID_DEFAULT = "true"
+ OVF_MATCH_STRING = "http://schemas.dmtf.org/ovf/environment/1"
+ 
+@@ -584,7 +584,7 @@ class TestDsIdentify(DsIdentifyBase):
+         data.update(
+             {
+                 "policy_dmi": POLICY_FOUND_OR_MAYBE,
+-                "policy_no_dmi": POLICY_FOUND_OR_MAYBE,
++                "policy_no_dmi": DI_DEFAULT_POLICY_NO_DMI,
+             }
+         )
+ 
+@@ -597,6 +597,8 @@ class TestDsIdentify(DsIdentifyBase):
+         (_, _, err, _, _) = self._check_via_dict(data, RC_NOT_FOUND)
+         self.assertIn("check for 'OpenStack' returned maybe", err)
+         self.assertIn("No ds found", err)
++        self.assertIn("Disabled cloud-init", err)
++        self.assertIn("returning 1", err)
+ 
+     def test_default_ovf_is_found(self):
+         """OVF is identified found when ovf/ovf-env.xml seed file exists."""
+diff --git a/tools/ds-identify b/tools/ds-identify
+index 87b320f56..a293ecf3e 100755
+--- a/tools/ds-identify
++++ b/tools/ds-identify
+@@ -95,7 +95,7 @@ DI_MAIN=${DI_MAIN:-main}
+ DI_BLKID_EXPORT_OUT=""
+ DI_GEOM_LABEL_STATUS_OUT=""
+ DI_DEFAULT_POLICY="search,found=all,maybe=none,notfound=${DI_DISABLED}"
+-DI_DEFAULT_POLICY_NO_DMI="search,found=all,maybe=none,notfound=${DI_ENABLED}"
++DI_DEFAULT_POLICY_NO_DMI="search,found=all,maybe=none,notfound=${DI_DISABLED}"
+ DI_DMI_BOARD_NAME=""
+ DI_DMI_CHASSIS_ASSET_TAG=""
+ DI_DMI_PRODUCT_NAME=""
+-- 
+2.39.3
+

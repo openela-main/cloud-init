@@ -6,7 +6,7 @@
 
 Name:                 cloud-init
 Version:              23.4
-Release:              7%{?dist}.9.0.1
+Release:              7%{?dist}.10.0.1
 Summary:              Cloud instance init scripts
 
 Group:                System Environment/Base
@@ -61,8 +61,12 @@ Patch32:              ci-fix-Add-subnet-ipv4-ipv6-to-network-schema-5191.patch
 Patch33:              ci-fix-rh_subscription-add-string-type-to-org-5453.patch
 # For RHEL-81169 - Cloud-init fails to subscribe system if activation key 'org' is not an integer [rhel-8.10.z]
 Patch34:              ci-fix-python3.13-Fix-import-error-for-passlib-on-Pytho.patch
-Patch35:              0001-Ensure-cloud-user-is-applied-to-OpenELA.patch
-Patch36:              0001-Remove-rh-subscription.patch
+# For RHEL-100606 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-8.10.z]
+Patch35:              ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch
+# For RHEL-100606 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-8.10.z]
+Patch36:              ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch
+Patch37:              0001-Ensure-cloud-user-is-applied-to-OpenELA.patch
+Patch38:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -278,8 +282,14 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue Apr 22 2025 Release Engineering <releng@openela.org> - 23.4.0.1
+* Wed Jul 16 2025 Release Engineering <releng@openela.org> - 23.4.0.1
 - Apply OpenELA fixes
+
+* Mon Jul 14 2025 Miroslav Rezanina <mrezanin@redhat.com> - 23.4-7.el8.10
+- ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch [RHEL-100606]
+- ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch [RHEL-100606]
+- Resolves: RHEL-100606
+  (CVE-2024-6174 cloud-init: From CVEorg collector [rhel-8.10.z])
 
 * Mon Mar 10 2025 Jon Maloy <jmaloy@redhat.com> - 23.4-7.el8.9
 - ci-fix-rh_subscription-add-string-type-to-org-5453.patch [RHEL-81169]
