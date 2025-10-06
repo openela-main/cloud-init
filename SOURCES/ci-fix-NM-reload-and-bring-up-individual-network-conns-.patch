@@ -1,0 +1,69 @@
+From 83b84453551d385f3102c03abacaf72345e466ca Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Thu, 13 Mar 2025 19:46:35 +0530
+Subject: [PATCH] fix: NM reload and bring up individual network conns (#6073)
+
+RH-Author: Ani Sinha <anisinha@redhat.com
+RH-MergeRequest: 157: fix: NM reload and bring up individual network conns (#6073)
+RH-Jira: RHEL-83639
+RH-Acked-by: xiachen
+RH-Acked-by: eesposit
+RH-Commit: 943e3e0a fix: NM reload and bring up individual network conns (#6073)
+
+Reloading the network manager service is equivalent to "nmcli reload" and this
+command only reloads the global .conf files and DNS config, not connections.
+This means changes to connection files will not take effect. For those to take
+effect, we need "nmcli conn load/reload" and then "nmcli conn up". Thus,
+reloading network manager as well as reloading the connections are required to
+cover all cases.
+
+Also see https://github.com/canonical/cloud-init/issues/5512#issuecomment-2298371744
+
+While at it, rename "reload-or-try-restart" -> "try-reload-or-restart" since
+the former is legacy and the later is the officially documented sub-command.
+
+Fixes: GH-6064
+Fixes: bde913ae242 ("fix(NetworkManager): Fix network activator")
+
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit 671baf22df846bcc2cfecf3d2c0e09a816fbf240)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/net/activators.py            | 4 ++--
+ tests/unittests/test_net_activators.py | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/cloudinit/net/activators.py b/cloudinit/net/activators.py
+index de9a1d3c..94212894 100644
+--- a/cloudinit/net/activators.py
++++ b/cloudinit/net/activators.py
+@@ -206,9 +206,9 @@ class NetworkManagerActivator(NetworkActivator):
+                 state,
+             )
+         return _alter_interface(
+-            ["systemctl", "reload-or-try-restart", "NetworkManager.service"],
++            ["systemctl", "try-reload-or-restart", "NetworkManager.service"],
+             "all",
+-        )
++        ) and all(cls.bring_up_interface(device) for device in device_names)
+ 
+ 
+ class NetplanActivator(NetworkActivator):
+diff --git a/tests/unittests/test_net_activators.py b/tests/unittests/test_net_activators.py
+index a720ada8..84876b73 100644
+--- a/tests/unittests/test_net_activators.py
++++ b/tests/unittests/test_net_activators.py
+@@ -247,8 +247,8 @@ NETWORK_MANAGER_BRING_UP_ALL_CALL_LIST: list = [
+         ),
+         {},
+     ),
+-    ((["systemctl", "reload-or-try-restart", "NetworkManager.service"],), {}),
+-]
++    ((["systemctl", "try-reload-or-restart", "NetworkManager.service"],), {}),
++] + NETWORK_MANAGER_BRING_UP_CALL_LIST
+ 
+ NETWORKD_BRING_UP_CALL_LIST: list = [
+     ((["ip", "link", "set", "dev", "eth0", "up"],), {}),
+-- 
+2.39.3
+

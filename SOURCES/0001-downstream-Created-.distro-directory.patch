@@ -1,0 +1,115 @@
+From 836dba5146e57e2da48718e5f7f147b6e681f92f Mon Sep 17 00:00:00 2001
+From: Miroslav Rezanina <mrezanin@redhat.com>
+Date: Mon, 22 Apr 2024 10:32:25 +0200
+Subject: [PATCH] downstream: Created .distro directory
+
+Adding minimal set of changes necessary for successful build of the package
+on RHEL/CentOS 10 Stream koji.
+
+Ignore-patch: True
+Signed-off-by: Miroslav Rezanina <mrezanin@redhat.com>
+(cherry picked from commit 23abe3d5d237b0f037e4d7f17c7e1e7ecd644593)
+Signed-off-by: Cathy Avery <cavery@redhat.com>
+
+Changes for 24.4 release:
+ - Updated version in spec file.
+ - Updated source tarball name in makefile.common in .dist/
+ - Updated VERSION, MARKER etc in Makefile.common in .dist.
+ - Updated sha512 in sources.sha512 under .dist/
+ - Removed not needed patches in spec file.
+ - Added changelogs.
+
+Changes for 24.1.3 release:
+ - Updated version in spec file in .dist.
+ - Updated source tarball name in spec file in .dist/
+ - Removed reference to Patch0 coming from Fedora in spec file in .dist.
+ - Removed reference to clean.d/README from spec file in .dist/
+ - Updated VERSION, MARKER etc in Makefile.common in .dist.
+ - Updated sha512 in sources.sha512 under .dist/
+ - Updated TargetRelease to point to RHEL 10.0 in .dist/
+
+Additional changes for 23.4 rebase:
+ - Updated VERSION, TARSHA512, MARKER and BUILD_TARGET_RHEL parameters in
+   Makefile.common in .dist/
+ - Squashed unit test fixes for the downstream changes in cloudinit/settings.py.
+
+Changes from 23.1.1 rebase follows:
+
+Merged patches (24.4):
+e262a903b Remove dependency on dhcp-client (ISC DHCP) and use dhcpcd instead
+b377b3f7e Fix spec file post install script
+f7b2de7f9 .distro/spec: remove dependency on net-tools
+bd6474159 Add back dependency on python3-configobj
+5fb5789c7 Report full specific version with "cloud-init --version"
+37ad7ef67 Remove python3-jsonschema dependency
+
+Merged patches (23.1.1):
+724a80ac  Add TargetRelease
+967a4405b rhel/cloud.cfg: remove ssh_genkeytypes in settings.py and set in cloud.cfg
+^ Merged since it removes hunks added in this commit itself
+
+Discarded because not needed anymore (packit):
+e3fd7ce12 Configure Packit to ignore the .gitignore file
+e18654e9  Fixes for packit support
+
+Discarded because file does not exist anymore and templates are aligned with upstream:
+3576b12460bf18557857ee25df6bf530dab66612 Adding _netdev to the default mount configuration
+8092b57ab245856ff1fdde1469960608a489c95e   Remove rhel specific files
+
+Added the following entry to %files to keep track of the new README file in config/clean.d/README
+%doc               %{_sysconfdir}/cloud/clean.d/README
+
+ignored
+c75e509b0 Revert "Revert "Setting highest autoconnect priority for network-scripts""
+0eba5c619 Revert "Setting highest autoconnect priority for network-scripts"
+
+ignored
+ba19343c0d9807d0c68a2d8e4ab274f3ca884247 Add Gitlab CI
+fe09305a5479a4814d6c46df07a906bafa29d637 Delete .gitlab-ci.yml
+
+Conflicts:
+missing rhel/ static files and "" instead of '' in setup.py
+
+Signed-off-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit 03345a88b8b0008a4a81e010d46290f5ba643ebc)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+(cherry picked from commit f388189084cb1b8c93f2ef66fc61054d11668fff)
+Signed-off-by: Cathy Avery <cavery@redhat.com>
+---
+ cloudinit/settings.py | 5 +++--
+ requirements.txt      | 2 +-
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/cloudinit/settings.py b/cloudinit/settings.py
+index a73f25118..ea7ac283f 100644
+--- a/cloudinit/settings.py
++++ b/cloudinit/settings.py
+@@ -56,14 +56,15 @@ CFG_BUILTIN = {
+     ],
+     "def_log_file": "/var/log/cloud-init.log",
+     "log_cfgs": [],
+-    "syslog_fix_perms": ["syslog:adm", "root:adm", "root:wheel", "root:root"],
++    "mount_default_fields": [None, None, "auto", "defaults,nofail", "0", "2"],
++    "syslog_fix_perms": [],
+     "system_info": {
+         "paths": {
+             "cloud_dir": "/var/lib/cloud",
+             "docs_dir": "/usr/share/doc/cloud-init/",
+             "templates_dir": "/etc/cloud/templates/",
+         },
+-        "distro": "ubuntu",
++        "distro": "rhel",
+         "network": {"renderers": None},
+     },
+     "vendor_data": {"enabled": True, "prefix": []},
+diff --git a/requirements.txt b/requirements.txt
+index 05aac105f..20af58bdc 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -23,4 +23,4 @@ requests
+ jsonpatch
+ 
+ # For validating cloud-config sections per schema definitions
+-jsonschema
++# jsonschema

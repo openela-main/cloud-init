@@ -1,0 +1,90 @@
+From 5f3213d8af6f1130d7fffb02ba420af802f916c2 Mon Sep 17 00:00:00 2001
+From: Brett Holman <brett.holman@canonical.com>
+Date: Tue, 17 Dec 2024 19:28:56 -0700
+Subject: [PATCH] fix: don't deadlock when starting network service with
+ systemctl (#5935)
+
+(cherry picked from commit bc26e15fd09b65a38ddd8cbafc5379cb19960d2b)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/config/cc_set_passwords.py          | 20 ++++++++++++++++---
+ cloudinit/distros/__init__.py                 |  4 ++--
+ .../unittests/config/test_cc_set_passwords.py |  4 +++-
+ 3 files changed, 22 insertions(+), 6 deletions(-)
+
+diff --git a/cloudinit/config/cc_set_passwords.py b/cloudinit/config/cc_set_passwords.py
+index 8cb6a1ec5..22547d0fd 100644
+--- a/cloudinit/config/cc_set_passwords.py
++++ b/cloudinit/config/cc_set_passwords.py
+@@ -45,9 +45,9 @@ def get_users_by_type(users_list: list, pw_type: str) -> list:
+     )
+ 
+ 
+-def _restart_ssh_daemon(distro, service):
++def _restart_ssh_daemon(distro: Distro, service: str, *extra_args: str):
+     try:
+-        distro.manage_service("restart", service)
++        distro.manage_service("restart", service, *extra_args)
+         LOG.debug("Restarted the SSH daemon.")
+     except subp.ProcessExecutionError as e:
+         LOG.warning(
+@@ -104,7 +104,21 @@ def handle_ssh_pwauth(pw_auth, distro: Distro):
+             ]
+         ).stdout.strip()
+         if state.lower() in ["active", "activating", "reloading"]:
+-            _restart_ssh_daemon(distro, service)
++            # This module runs Before=sshd.service. What that means is that
++            # the code can only get to this point if a user manually starts the
++            # network stage. While this isn't a well-supported use-case, this
++            # does cause a deadlock if started via systemd directly:
++            # "systemctl start cloud-init.service". Prevent users from causing
++            # this deadlock by forcing systemd to ignore dependencies when
++            # restarting. Note that this deadlock is not possible in newer
++            # versions of cloud-init, since starting the second service doesn't
++            # run the second stage in 24.3+. This code therefore exists solely
++            # for backwards compatibility so that users who think that they
++            # need to manually start cloud-init (why?) with systemd (again,
++            # why?) can do so.
++            _restart_ssh_daemon(
++                distro, service, "--job-mode=ignore-dependencies"
++            )
+     else:
+         _restart_ssh_daemon(distro, service)
+ 
+diff --git a/cloudinit/distros/__init__.py b/cloudinit/distros/__init__.py
+index 183df368a..34c0836e8 100644
+--- a/cloudinit/distros/__init__.py
++++ b/cloudinit/distros/__init__.py
+@@ -142,7 +142,7 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
+     shadow_empty_locked_passwd_patterns = ["^{username}::", "^{username}:!:"]
+     tz_zone_dir = "/usr/share/zoneinfo"
+     default_owner = "root:root"
+-    init_cmd = ["service"]  # systemctl, service etc
++    init_cmd: List[str] = ["service"]  # systemctl, service etc
+     renderer_configs: Mapping[str, MutableMapping[str, Any]] = {}
+     _preferred_ntp_clients = None
+     networking_cls: Type[Networking] = LinuxNetworking
+@@ -1373,7 +1373,7 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
+                 "try-reload": [service, "restart"],
+                 "status": [service, "status"],
+             }
+-        cmd = list(init_cmd) + list(cmds[action])
++        cmd = init_cmd + cmds[action] + list(extra_args)
+         return subp.subp(cmd, capture=True, rcs=rcs)
+ 
+     def set_keymap(self, layout: str, model: str, variant: str, options: str):
+diff --git a/tests/unittests/config/test_cc_set_passwords.py b/tests/unittests/config/test_cc_set_passwords.py
+index c068f62d8..a706917d7 100644
+--- a/tests/unittests/config/test_cc_set_passwords.py
++++ b/tests/unittests/config/test_cc_set_passwords.py
+@@ -27,7 +27,9 @@ SYSTEMD_CHECK_CALL = mock.call(
+     ["systemctl", "show", "--property", "ActiveState", "--value", "ssh"]
+ )
+ SYSTEMD_RESTART_CALL = mock.call(
+-    ["systemctl", "restart", "ssh"], capture=True, rcs=None
++    ["systemctl", "restart", "ssh", "--job-mode=ignore-dependencies"],
++    capture=True,
++    rcs=None,
+ )
+ SERVICE_RESTART_CALL = mock.call(
+     ["service", "ssh", "restart"], capture=True, rcs=None
