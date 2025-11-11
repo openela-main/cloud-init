@@ -1,14 +1,14 @@
-From 0ed2a904c5268a6f1d0469f24788c5cb4f8ae37f Mon Sep 17 00:00:00 2001
+From 0dd9ed02e5f8bd4b24ce9840de9973af4576aa98 Mon Sep 17 00:00:00 2001
 From: Brett Holman <brett.holman@canonical.com>
 Date: Thu, 22 Aug 2024 16:54:53 -0600
 Subject: [PATCH 1/2] fix: Don't attempt to identify non-x86 OpenStack
  instances
 
 RH-Author: Ani Sinha <anisinha@redhat.com>
-RH-MergeRequest: 162: CVE-2024-6174: fix: Don't attempt to identify non-x86 OpenStack instances
-RH-Jira: RHEL-100616
+RH-MergeRequest: 130: CVE-2024-6174: fix: Don't attempt to identify non-x86 OpenStack instances
+RH-Jira: RHEL-100617
 RH-Acked-by: xiachen <xiachen@redhat.com>
-RH-Commit: [1/2] b099f59cbe2b5698550c6459b01fccfd6d9bc11c
+RH-Commit: [1/2] 8351cf0b538b74f0835d81ddbed1bf8bd4a712d0 (anisinha/cloud-init)
 
 This causes cloud-init to attempt to reach out to the OpenStack Nova
 datasource in non-Nova deployments on non-x86 architectures.
@@ -34,7 +34,7 @@ Signed-off-by: Ani Sinha <anisinha@redhat.com>
  3 files changed, 59 insertions(+), 11 deletions(-)
 
 diff --git a/doc/rtd/reference/breaking_changes.rst b/doc/rtd/reference/breaking_changes.rst
-index ce54e1c9..cd425a30 100644
+index ce54e1c95..cd425a304 100644
 --- a/doc/rtd/reference/breaking_changes.rst
 +++ b/doc/rtd/reference/breaking_changes.rst
 @@ -11,6 +11,54 @@ releases.
@@ -100,7 +100,7 @@ index ce54e1c9..cd425a30 100644
  .. _this patch: https://github.com/canonical/cloud-init/blob/ubuntu/noble/debian/patches/no-single-process.patch
  .. _Python3 equivalent:  https://github.com/canonical/cloud-init/pull/5489#issuecomment-2408210561
 diff --git a/tests/unittests/test_ds_identify.py b/tests/unittests/test_ds_identify.py
-index 5d47e552..9b3828ce 100644
+index 5d47e552b..9b3828ce6 100644
 --- a/tests/unittests/test_ds_identify.py
 +++ b/tests/unittests/test_ds_identify.py
 @@ -208,9 +208,9 @@ system_info:
@@ -139,7 +139,7 @@ index 5d47e552..9b3828ce 100644
      def test_default_ovf_is_found(self):
          """OVF is identified found when ovf/ovf-env.xml seed file exists."""
 diff --git a/tools/ds-identify b/tools/ds-identify
-index e00b05e8..5644b1e3 100755
+index e00b05e80..5644b1e39 100755
 --- a/tools/ds-identify
 +++ b/tools/ds-identify
 @@ -14,7 +14,7 @@

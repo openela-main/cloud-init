@@ -1,14 +1,14 @@
-From 7e6b3aaaf1cfaba1a269957d6c9798c9d63215d2 Mon Sep 17 00:00:00 2001
+From 0f7bc05eafe096f6ee4a623f83425f0f67102704 Mon Sep 17 00:00:00 2001
 From: Chad Smith <chad.smith@canonical.com>
 Date: Tue, 24 Jun 2025 09:12:52 -0600
 Subject: [PATCH 2/2] fix: strict disable in ds-identify on no datasources
  found
 
 RH-Author: Ani Sinha <anisinha@redhat.com>
-RH-MergeRequest: 162: CVE-2024-6174: fix: Don't attempt to identify non-x86 OpenStack instances
-RH-Jira: RHEL-100616
+RH-MergeRequest: 130: CVE-2024-6174: fix: Don't attempt to identify non-x86 OpenStack instances
+RH-Jira: RHEL-100617
 RH-Acked-by: xiachen <xiachen@redhat.com>
-RH-Commit: [2/2] 510b79f3c3b7d014de2622efe906ae125dd9464a
+RH-Commit: [2/2] c0ad75eee537dd5fa369c446e0fee47591f5f107 (anisinha/cloud-init)
 
 Take the CVE-2024-6174 strict detection fix one step further.
 
@@ -41,7 +41,7 @@ Signed-off-by: Ani Sinha <anisinha@redhat.com>
  2 files changed, 5 insertions(+), 3 deletions(-)
 
 diff --git a/tests/unittests/test_ds_identify.py b/tests/unittests/test_ds_identify.py
-index 9b3828ce..2d6306c2 100644
+index 9b3828ce6..2d6306c2f 100644
 --- a/tests/unittests/test_ds_identify.py
 +++ b/tests/unittests/test_ds_identify.py
 @@ -210,7 +210,7 @@ system_info:
@@ -72,7 +72,7 @@ index 9b3828ce..2d6306c2 100644
      def test_default_ovf_is_found(self):
          """OVF is identified found when ovf/ovf-env.xml seed file exists."""
 diff --git a/tools/ds-identify b/tools/ds-identify
-index 5644b1e3..9bd9c9bb 100755
+index 5644b1e39..9bd9c9bbb 100755
 --- a/tools/ds-identify
 +++ b/tools/ds-identify
 @@ -101,7 +101,7 @@ DI_MAIN=${DI_MAIN:-main}

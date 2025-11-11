@@ -6,7 +6,7 @@
 
 Name:           cloud-init
 Version:        24.4
-Release:        3%{?dist}.2
+Release:        6%{?dist}
 Summary:        Cloud instance init scripts
 License:        Apache-2.0 OR GPL-3.0-only
 URL:            https://github.com/canonical/cloud-init
@@ -24,11 +24,14 @@ Patch7: 0001-downstream-Created-.distro-directory.patch
 Patch8: ci-Use-log_with_downgradable_level-for-user-password-wa.patch
 # For RHEL-79727 - [c10s] cloud-init remove 'NOZEROCONF=yes' from /etc/sysconfig/network
 Patch9: ci-net-sysconfig-do-not-remove-all-existing-settings-of.patch
+# For RHEL-81896 - DataSourceNoCloudNet network configuration is ineffective [rhel-10]
 Patch10: ci-fix-NM-reload-and-bring-up-individual-network-conns-.patch
-# For RHEL-100616 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-10.0.z]
-Patch11: ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch
-# For RHEL-100616 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-10.0.z]
-Patch12: ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch
+# For RHEL-88659 - cloudinit backport optimization features on Alibaba Cloud
+Patch11: ci-feat-aliyun-datasource-support-crawl-metadata-at-onc.patch
+# For RHEL-100617 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-10.1]
+Patch12: ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch
+# For RHEL-100617 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-10.1]
+Patch13: ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch
 
 BuildArch:      noarch
 
@@ -234,17 +237,22 @@ fi
 
 
 %changelog
-* Fri Jul 04 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-3.el10_0.2
-- ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch [RHEL-100616]
-- ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch [RHEL-100616]
-- Resolves: RHEL-100616
-  (CVE-2024-6174 cloud-init: From CVEorg collector [rhel-10.0.z])
+* Fri Jul 04 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-6
+- ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch [RHEL-100617]
+- ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch [RHEL-100617]
+- Resolves: RHEL-100617
+  (CVE-2024-6174 cloud-init: From CVEorg collector [rhel-10.1])
 
-* Tue Apr 08 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-3.el10_0.1
-- ci-fix-NM-reload-and-bring-up-individual-network-conns-.patch [RHEL-83639]
-- Resolves: RHEL-83639
-  (DataSourceNoCloudNet network configuration is ineffective)
- 
+* Mon May 12 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-5
+- ci-feat-aliyun-datasource-support-crawl-metadata-at-onc.patch [RHEL-88659]
+- Resolves: RHEL-88659
+  (cloudinit backport optimization features on Alibaba Cloud)
+
+* Tue Mar 18 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-4
+- ci-fix-NM-reload-and-bring-up-individual-network-conns-.patch [RHEL-81896]
+- Resolves: RHEL-81896
+  (DataSourceNoCloudNet network configuration is ineffective [rhel-10])
+
 * Mon Feb 17 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-3
 - ci-Use-log_with_downgradable_level-for-user-password-wa.patch [RHEL-73667]
 - ci-net-sysconfig-do-not-remove-all-existing-settings-of.patch [RHEL-79727]

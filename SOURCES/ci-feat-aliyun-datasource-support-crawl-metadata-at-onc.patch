@@ -1,0 +1,1000 @@
+From 21696670a0cb3196d8b0ec9fd1ca0218beed828a Mon Sep 17 00:00:00 2001
+From: jinkangkang <1547182170@qq.com>
+Date: Thu, 20 Feb 2025 10:55:05 +0800
+Subject: [PATCH] feat: aliyun datasource support crawl metadata at once
+ (#5942)
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 127: feat: aliyun datasource support crawl metadata at once (#5942)
+RH-Jira: RHEL-88659
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: xiachen <xiachen@redhat.com>
+RH-Commit: [1/1] e2b3c6e9a5bdcbaf1ead395d3776524b1b151260 (anisinha/cloud-init)
+
+Obtain metadata information from the new metadata path for better
+performance. Fall back to old directory tree format on failure.
+
+Also:
+
+- Separate the Alibaba Cloud data source from ec2 and make it independent
+- Use network card names to sort routing priorities
+- Add vendor data support
+- Streamline logic, made possible by separating the datasources
+
+Based on discussion in: GH-5838
+
+(cherry picked from commit 27adc8e598991e0861f45274f91d9fb97cdec636)
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ cloudinit/sources/DataSourceAliYun.py  | 338 ++++++++++++++++++++++++-
+ cloudinit/sources/DataSourceEc2.py     |   9 +-
+ cloudinit/sources/helpers/aliyun.py    | 211 +++++++++++++++
+ tests/unittests/sources/test_aliyun.py | 213 ++++++++++++----
+ tests/unittests/sources/test_ec2.py    |  10 -
+ 5 files changed, 704 insertions(+), 77 deletions(-)
+ create mode 100644 cloudinit/sources/helpers/aliyun.py
+
+diff --git a/cloudinit/sources/DataSourceAliYun.py b/cloudinit/sources/DataSourceAliYun.py
+index d674e1fc0..000e15a84 100644
+--- a/cloudinit/sources/DataSourceAliYun.py
++++ b/cloudinit/sources/DataSourceAliYun.py
+@@ -2,27 +2,43 @@
+ 
+ import copy
+ import logging
+-from typing import List
++from typing import List, Union
+ 
+ from cloudinit import dmi, sources
++from cloudinit import url_helper as uhelp
++from cloudinit import util
+ from cloudinit.event import EventScope, EventType
+-from cloudinit.sources import DataSourceEc2 as EC2
+-from cloudinit.sources import DataSourceHostname, NicOrder
++from cloudinit.net.dhcp import NoDHCPLeaseError
++from cloudinit.net.ephemeral import EphemeralIPNetwork
++from cloudinit.sources import DataSourceHostname
++from cloudinit.sources.helpers import aliyun, ec2
+ 
+ LOG = logging.getLogger(__name__)
+ 
+ ALIYUN_PRODUCT = "Alibaba Cloud ECS"
+ 
+ 
+-class DataSourceAliYun(EC2.DataSourceEc2):
++class DataSourceAliYun(sources.DataSource):
+ 
+     dsname = "AliYun"
+     metadata_urls = ["http://100.100.100.200"]
+ 
+-    # The minimum supported metadata_version from the ec2 metadata apis
++    # The minimum supported metadata_version from the ecs metadata apis
+     min_metadata_version = "2016-01-01"
+     extended_metadata_versions: List[str] = []
+ 
++    # Setup read_url parameters per get_url_params.
++    url_max_wait = 240
++    url_timeout = 50
++
++    # API token for accessing the metadata service
++    _api_token = None
++    # Used to cache calculated network cfg v1
++    _network_config: Union[str, dict] = sources.UNSET
++
++    # Whether we want to get network configuration from the metadata service.
++    perform_dhcp_setup = False
++
+     # Aliyun metadata server security enhanced mode overwrite
+     @property
+     def imdsv2_token_put_header(self):
+@@ -32,11 +48,9 @@ class DataSourceAliYun(EC2.DataSourceEc2):
+         super(DataSourceAliYun, self).__init__(sys_cfg, distro, paths)
+         self.default_update_events = copy.deepcopy(self.default_update_events)
+         self.default_update_events[EventScope.NETWORK].add(EventType.BOOT)
+-        self._fallback_nic_order = NicOrder.NIC_NAME
+ 
+     def _unpickle(self, ci_pkl_version: int) -> None:
+         super()._unpickle(ci_pkl_version)
+-        self._fallback_nic_order = NicOrder.NIC_NAME
+ 
+     def get_hostname(self, fqdn=False, resolve_ip=False, metadata_only=False):
+         hostname = self.metadata.get("hostname")
+@@ -51,9 +65,315 @@ class DataSourceAliYun(EC2.DataSourceEc2):
+ 
+     def _get_cloud_name(self):
+         if _is_aliyun():
+-            return EC2.CloudNames.ALIYUN
++            return self.dsname.lower()
++        return "NO_ALIYUN_METADATA"
++
++    @property
++    def platform(self):
++        return self.dsname.lower()
++
++    # IMDSv2 related parameters from the ecs metadata api document
++    @property
++    def api_token_route(self):
++        return "latest/api/token"
++
++    @property
++    def imdsv2_token_ttl_seconds(self):
++        return "21600"
++
++    @property
++    def imdsv2_token_redact(self):
++        return [self.imdsv2_token_put_header, self.imdsv2_token_req_header]
++
++    @property
++    def imdsv2_token_req_header(self):
++        return self.imdsv2_token_put_header + "-ttl-seconds"
++
++    @property
++    def network_config(self):
++        """Return a network config dict for rendering ENI or netplan files."""
++        if self._network_config != sources.UNSET:
++            return self._network_config
++
++        result = {}
++        iface = self.distro.fallback_interface
++        net_md = self.metadata.get("network")
++        if isinstance(net_md, dict):
++            result = aliyun.convert_ecs_metadata_network_config(
++                net_md,
++                fallback_nic=iface,
++                full_network_config=util.get_cfg_option_bool(
++                    self.ds_cfg, "apply_full_imds_network_config", True
++                ),
++            )
+         else:
+-            return EC2.CloudNames.NO_EC2_METADATA
++            LOG.warning("Metadata 'network' key not valid: %s.", net_md)
++            return result
++        self._network_config = result
++        return self._network_config
++
++    def _maybe_fetch_api_token(self, mdurls):
++        """Get an API token for ECS Instance Metadata Service.
++
++        On ECS. IMDS will always answer an API token, set
++        HttpTokens=optional (default) when create instance will not forcefully
++        use the security-enhanced mode (IMDSv2).
++
++        https://api.alibabacloud.com/api/Ecs/2014-05-26/RunInstances
++        """
++
++        urls = []
++        url2base = {}
++        url_path = self.api_token_route
++        request_method = "PUT"
++        for url in mdurls:
++            cur = "{0}/{1}".format(url, url_path)
++            urls.append(cur)
++            url2base[cur] = url
++
++        # use the self._imds_exception_cb to check for Read errors
++        LOG.debug("Fetching Ecs IMDSv2 API Token")
++
++        response = None
++        url = None
++        url_params = self.get_url_params()
++        try:
++            url, response = uhelp.wait_for_url(
++                urls=urls,
++                max_wait=url_params.max_wait_seconds,
++                timeout=url_params.timeout_seconds,
++                status_cb=LOG.warning,
++                headers_cb=self._get_headers,
++                exception_cb=self._imds_exception_cb,
++                request_method=request_method,
++                headers_redact=self.imdsv2_token_redact,
++                connect_synchronously=False,
++            )
++        except uhelp.UrlError:
++            # We use the raised exception to interupt the retry loop.
++            # Nothing else to do here.
++            pass
++
++        if url and response:
++            self._api_token = response
++            return url2base[url]
++
++        # If we get here, then wait_for_url timed out, waiting for IMDS
++        # or the IMDS HTTP endpoint is disabled
++        return None
++
++    def wait_for_metadata_service(self):
++        mcfg = self.ds_cfg
++        mdurls = mcfg.get("metadata_urls", self.metadata_urls)
++
++        # try the api token path first
++        metadata_address = self._maybe_fetch_api_token(mdurls)
++
++        if metadata_address:
++            self.metadata_address = metadata_address
++            LOG.debug("Using metadata source: '%s'", self.metadata_address)
++        else:
++            LOG.warning("IMDS's HTTP endpoint is probably disabled")
++        return bool(metadata_address)
++
++    def crawl_metadata(self):
++        """Crawl metadata service when available.
++
++        @returns: Dictionary of crawled metadata content containing the keys:
++          meta-data, user-data, vendor-data and dynamic.
++        """
++        if not self.wait_for_metadata_service():
++            return {}
++        redact = self.imdsv2_token_redact
++        crawled_metadata = {}
++        exc_cb = self._refresh_stale_aliyun_token_cb
++        exc_cb_ud = self._skip_or_refresh_stale_aliyun_token_cb
++        skip_cb = None
++        exe_cb_whole_meta = self._skip_json_path_meta_path_aliyun_cb
++        try:
++            crawled_metadata["user-data"] = aliyun.get_instance_data(
++                self.min_metadata_version,
++                self.metadata_address,
++                headers_cb=self._get_headers,
++                headers_redact=redact,
++                exception_cb=exc_cb_ud,
++                item_name="user-data",
++            )
++            crawled_metadata["vendor-data"] = aliyun.get_instance_data(
++                self.min_metadata_version,
++                self.metadata_address,
++                headers_cb=self._get_headers,
++                headers_redact=redact,
++                exception_cb=exc_cb_ud,
++                item_name="vendor-data",
++            )
++            try:
++                result = aliyun.get_instance_meta_data(
++                    self.min_metadata_version,
++                    self.metadata_address,
++                    headers_cb=self._get_headers,
++                    headers_redact=redact,
++                    exception_cb=exe_cb_whole_meta,
++                )
++                crawled_metadata["meta-data"] = result
++            except Exception:
++                util.logexc(
++                    LOG,
++                    "Faild read json meta-data from %s "
++                    "fall back directory tree style",
++                    self.metadata_address,
++                )
++                crawled_metadata["meta-data"] = ec2.get_instance_metadata(
++                    self.min_metadata_version,
++                    self.metadata_address,
++                    headers_cb=self._get_headers,
++                    headers_redact=redact,
++                    exception_cb=exc_cb,
++                    retrieval_exception_ignore_cb=skip_cb,
++                )
++        except Exception:
++            util.logexc(
++                LOG,
++                "Failed reading from metadata address %s",
++                self.metadata_address,
++            )
++            return {}
++        return crawled_metadata
++
++    def _refresh_stale_aliyun_token_cb(self, msg, exception):
++        """Exception handler for Ecs to refresh token if token is stale."""
++        if isinstance(exception, uhelp.UrlError) and exception.code == 401:
++            # With _api_token as None, _get_headers will _refresh_api_token.
++            LOG.debug("Clearing cached Ecs API token due to expiry")
++            self._api_token = None
++        return True  # always retry
++
++    def _skip_retry_on_codes(self, status_codes, cause):
++        """Returns False if cause.code is in status_codes."""
++        return cause.code not in status_codes
++
++    def _skip_or_refresh_stale_aliyun_token_cb(self, msg, exception):
++        """Callback will not retry on SKIP_USERDATA_VENDORDATA_CODES or
++        if no token is available."""
++        retry = self._skip_retry_on_codes(ec2.SKIP_USERDATA_CODES, exception)
++        if not retry:
++            return False  # False raises exception
++        return self._refresh_stale_aliyun_token_cb(msg, exception)
++
++    def _skip_json_path_meta_path_aliyun_cb(self, msg, exception):
++        """Callback will not retry of whole meta_path is not found"""
++        if isinstance(exception, uhelp.UrlError) and exception.code == 404:
++            LOG.warning("whole meta_path is not found, skipping")
++            return False
++        return self._refresh_stale_aliyun_token_cb(msg, exception)
++
++    def _get_data(self):
++        if self.cloud_name != self.dsname.lower():
++            return False
++        if self.perform_dhcp_setup:  # Setup networking in init-local stage.
++            if util.is_FreeBSD():
++                LOG.debug("FreeBSD doesn't support running dhclient with -sf")
++                return False
++            try:
++                with EphemeralIPNetwork(
++                    self.distro,
++                    self.distro.fallback_interface,
++                    ipv4=True,
++                    ipv6=False,
++                ) as netw:
++                    self._crawled_metadata = self.crawl_metadata()
++                    LOG.debug(
++                        "Crawled metadata service%s",
++                        f" {netw.state_msg}" if netw.state_msg else "",
++                    )
++
++            except NoDHCPLeaseError:
++                return False
++        else:
++            self._crawled_metadata = self.crawl_metadata()
++        if not self._crawled_metadata or not isinstance(
++            self._crawled_metadata, dict
++        ):
++            return False
++        self.metadata = self._crawled_metadata.get("meta-data", {})
++        self.userdata_raw = self._crawled_metadata.get("user-data", {})
++        self.vendordata_raw = self._crawled_metadata.get("vendor-data", {})
++        return True
++
++    def _refresh_api_token(self, seconds=None):
++        """Request new metadata API token.
++        @param seconds: The lifetime of the token in seconds
++
++        @return: The API token or None if unavailable.
++        """
++
++        if seconds is None:
++            seconds = self.imdsv2_token_ttl_seconds
++
++        LOG.debug("Refreshing Ecs metadata API token")
++        request_header = {self.imdsv2_token_req_header: seconds}
++        token_url = "{}/{}".format(self.metadata_address, self.api_token_route)
++        try:
++            response = uhelp.readurl(
++                token_url,
++                headers=request_header,
++                headers_redact=self.imdsv2_token_redact,
++                request_method="PUT",
++            )
++        except uhelp.UrlError as e:
++            LOG.warning(
++                "Unable to get API token: %s raised exception %s", token_url, e
++            )
++            return None
++        return response.contents
++
++    def _get_headers(self, url=""):
++        """Return a dict of headers for accessing a url.
++
++        If _api_token is unset on AWS, attempt to refresh the token via a PUT
++        and then return the updated token header.
++        """
++
++        request_token_header = {
++            self.imdsv2_token_req_header: self.imdsv2_token_ttl_seconds
++        }
++        if self.api_token_route in url:
++            return request_token_header
++        if not self._api_token:
++            # If we don't yet have an API token, get one via a PUT against
++            # api_token_route. This _api_token may get unset by a 403 due
++            # to an invalid or expired token
++            self._api_token = self._refresh_api_token()
++            if not self._api_token:
++                return {}
++        return {self.imdsv2_token_put_header: self._api_token}
++
++    def _imds_exception_cb(self, msg, exception=None):
++        """Fail quickly on proper AWS if IMDSv2 rejects API token request
++
++        Guidance from Amazon is that if IMDSv2 had disabled token requests
++        by returning a 403, or cloud-init malformed requests resulting in
++        other 40X errors, we want the datasource detection to fail quickly
++        without retries as those symptoms will likely not be resolved by
++        retries.
++
++        Exceptions such as requests.ConnectionError due to IMDS being
++        temporarily unroutable or unavailable will still retry due to the
++        callsite wait_for_url.
++        """
++        if isinstance(exception, uhelp.UrlError):
++            # requests.ConnectionError will have exception.code == None
++            if exception.code and exception.code >= 400:
++                if exception.code == 403:
++                    LOG.warning(
++                        "Ecs IMDS endpoint returned a 403 error. "
++                        "HTTP endpoint is disabled. Aborting."
++                    )
++                else:
++                    LOG.warning(
++                        "Fatal error while requesting Ecs IMDSv2 API tokens"
++                    )
++                raise exception
+ 
+ 
+ def _is_aliyun():
+diff --git a/cloudinit/sources/DataSourceEc2.py b/cloudinit/sources/DataSourceEc2.py
+index 10837df6a..0b763b52b 100644
+--- a/cloudinit/sources/DataSourceEc2.py
++++ b/cloudinit/sources/DataSourceEc2.py
+@@ -34,7 +34,6 @@ STRICT_ID_DEFAULT = "warn"
+ 
+ 
+ class CloudNames:
+-    ALIYUN = "aliyun"
+     AWS = "aws"
+     BRIGHTBOX = "brightbox"
+     ZSTACK = "zstack"
+@@ -54,7 +53,7 @@ def skip_404_tag_errors(exception):
+ 
+ 
+ # Cloud platforms that support IMDSv2 style metadata server
+-IDMSV2_SUPPORTED_CLOUD_PLATFORMS = [CloudNames.AWS, CloudNames.ALIYUN]
++IDMSV2_SUPPORTED_CLOUD_PLATFORMS = [CloudNames.AWS]
+ 
+ # Only trigger hook-hotplug on NICs with Ec2 drivers. Avoid triggering
+ # it on docker virtual NICs and the like. LP: #1946003
+@@ -768,11 +767,6 @@ def warn_if_necessary(cfgval, cfg):
+     warnings.show_warning("non_ec2_md", cfg, mode=True, sleep=sleep)
+ 
+ 
+-def identify_aliyun(data):
+-    if data["product_name"] == "Alibaba Cloud ECS":
+-        return CloudNames.ALIYUN
+-
+-
+ def identify_aws(data):
+     # data is a dictionary returned by _collect_platform_data.
+     uuid_str = data["uuid"]
+@@ -821,7 +815,6 @@ def identify_platform():
+         identify_zstack,
+         identify_e24cloud,
+         identify_outscale,
+-        identify_aliyun,
+         lambda x: CloudNames.UNKNOWN,
+     )
+     for checker in checks:
+diff --git a/cloudinit/sources/helpers/aliyun.py b/cloudinit/sources/helpers/aliyun.py
+new file mode 100644
+index 000000000..201ceb04b
+--- /dev/null
++++ b/cloudinit/sources/helpers/aliyun.py
+@@ -0,0 +1,211 @@
++# This file is part of cloud-init. See LICENSE file for license information.
++
++import logging
++from typing import MutableMapping
++
++from cloudinit import net, url_helper, util
++from cloudinit.sources.helpers import ec2
++
++LOG = logging.getLogger(__name__)
++
++
++def get_instance_meta_data(
++    api_version="latest",
++    metadata_address="http://100.100.100.200",
++    ssl_details=None,
++    timeout=5,
++    retries=5,
++    headers_cb=None,
++    headers_redact=None,
++    exception_cb=None,
++):
++    ud_url = url_helper.combine_url(metadata_address, api_version)
++    ud_url = url_helper.combine_url(ud_url, "meta-data/all")
++    response = url_helper.read_file_or_url(
++        ud_url,
++        ssl_details=ssl_details,
++        timeout=timeout,
++        retries=retries,
++        exception_cb=exception_cb,
++        headers_cb=headers_cb,
++        headers_redact=headers_redact,
++    )
++    meta_data_raw: object = util.load_json(response.contents)
++
++    # meta_data_raw is a json object with the following format get
++    # by`meta-data/all`
++    # {
++    #   "sub-private-ipv4-list": "",
++    #   "dns-conf": {
++    #     "nameservers": "100.100.2.136\r\n100.100.2.138"
++    #   },
++    #   "zone-id": "cn-hangzhou-i",
++    #   "instance": {
++    #     "instance-name": "aliyun_vm_test",
++    #     "instance-type": "ecs.g7.xlarge"
++    #   },
++    #   "disks": {
++    #     "bp1cikh4di1xxxx": {
++    #       "name": "disk_test",
++    #       "id": "d-bp1cikh4di1lf7pxxxx"
++    #     }
++    #   },
++    #   "instance-id": "i-bp123",
++    #   "eipv4": "47.99.152.7",
++    #   "private-ipv4": "192.168.0.9",
++    #   "hibernation": {
++    #     "configured": "false"
++    #   },
++    #   "vpc-id": "vpc-bp1yeqg123",
++    #   "mac": "00:16:3e:30:3e:ca",
++    #   "source-address": "http://mirrors.cloud.aliyuncs.com",
++    #   "vswitch-cidr-block": "192.168.0.0/24",
++    #   "network": {
++    #     "interfaces": {
++    #       "macs": {
++    #         "00:16:3e:30:3e:ca": {
++    #           "vpc-cidr-block": "192.168.0.0/16",
++    #           "netmask": "255.255.255.0"
++    #         }
++    #       }
++    #     }
++    #   },
++    #   "network-type": "vpc",
++    #   "hostname": "aliyun_vm_test",
++    #   "region-id": "cn-hangzhou",
++    #   "ntp-conf": {
++    #     "ntp-servers": "ntp1.aliyun.com\r\nntp2.aliyun.com"
++    #   },
++    # }
++    # Note: For example, in the values of dns conf: the `nameservers`
++    # key is a string, the format is the same as the response from the
++    # `meta-data/dns-conf/nameservers` endpoint. we use the same
++    # serialization method to ensure consistency between
++    # the two methods (directory tree and json path).
++    def _process_dict_values(d):
++        if isinstance(d, dict):
++            return {k: _process_dict_values(v) for k, v in d.items()}
++        elif isinstance(d, list):
++            return [_process_dict_values(item) for item in d]
++        else:
++            return ec2.MetadataLeafDecoder()("", d)
++
++    return _process_dict_values(meta_data_raw)
++
++
++def get_instance_data(
++    api_version="latest",
++    metadata_address="http://100.100.100.200",
++    ssl_details=None,
++    timeout=5,
++    retries=5,
++    headers_cb=None,
++    headers_redact=None,
++    exception_cb=None,
++    item_name=None,
++):
++    ud_url = url_helper.combine_url(metadata_address, api_version)
++    ud_url = url_helper.combine_url(ud_url, item_name)
++    data = b""
++    support_items_list = ["user-data", "vendor-data"]
++    if item_name not in support_items_list:
++        LOG.error(
++            "aliyun datasource not support the item  %s",
++            item_name,
++        )
++        return data
++    try:
++        response = url_helper.read_file_or_url(
++            ud_url,
++            ssl_details=ssl_details,
++            timeout=timeout,
++            retries=retries,
++            exception_cb=exception_cb,
++            headers_cb=headers_cb,
++            headers_redact=headers_redact,
++        )
++        data = response.contents
++    except Exception:
++        util.logexc(LOG, "Failed fetching %s from url %s", item_name, ud_url)
++    return data
++
++
++def convert_ecs_metadata_network_config(
++    network_md,
++    macs_to_nics=None,
++    fallback_nic=None,
++    full_network_config=True,
++):
++    """Convert ecs metadata to network config version 2 data dict.
++
++    @param: network_md: 'network' portion of ECS metadata.
++    generally formed as {"interfaces": {"macs": {}} where
++    'macs' is a dictionary with mac address as key:
++    @param: macs_to_nics: Optional dict of mac addresses and nic names. If
++    not provided, get_interfaces_by_mac is called to get it from the OS.
++    @param: fallback_nic: Optionally provide the primary nic interface name.
++    This nic will be guaranteed to minimally have a dhcp4 configuration.
++    @param: full_network_config: Boolean set True to configure all networking
++    presented by IMDS. This includes rendering secondary IPv4 and IPv6
++    addresses on all NICs and rendering network config on secondary NICs.
++    If False, only the primary nic will be configured and only with dhcp
++    (IPv4/IPv6).
++
++    @return A dict of network config version 2 based on the metadata and macs.
++    """
++    netcfg: MutableMapping = {"version": 2, "ethernets": {}}
++    if not macs_to_nics:
++        macs_to_nics = net.get_interfaces_by_mac()
++    macs_metadata = network_md["interfaces"]["macs"]
++
++    if not full_network_config:
++        for mac, nic_name in macs_to_nics.items():
++            if nic_name == fallback_nic:
++                break
++        dev_config: MutableMapping = {
++            "dhcp4": True,
++            "dhcp6": False,
++            "match": {"macaddress": mac.lower()},
++            "set-name": nic_name,
++        }
++        nic_metadata = macs_metadata.get(mac)
++        if nic_metadata.get("ipv6s"):  # Any IPv6 addresses configured
++            dev_config["dhcp6"] = True
++        netcfg["ethernets"][nic_name] = dev_config
++        return netcfg
++    nic_name_2_mac_map = dict()
++    for mac, nic_name in macs_to_nics.items():
++        nic_metadata = macs_metadata.get(mac)
++        if not nic_metadata:
++            continue  # Not a physical nic represented in metadata
++        nic_name_2_mac_map[nic_name] = mac
++
++    # sorted by nic_name
++    orderd_nic_name_list = sorted(
++        nic_name_2_mac_map.keys(), key=net.natural_sort_key
++    )
++    for nic_idx, nic_name in enumerate(orderd_nic_name_list):
++        nic_mac = nic_name_2_mac_map[nic_name]
++        nic_metadata = macs_metadata.get(nic_mac)
++        dhcp_override = {"route-metric": (nic_idx + 1) * 100}
++        dev_config = {
++            "dhcp4": True,
++            "dhcp4-overrides": dhcp_override,
++            "dhcp6": False,
++            "match": {"macaddress": nic_mac.lower()},
++            "set-name": nic_name,
++        }
++        if nic_metadata.get("ipv6s"):  # Any IPv6 addresses configured
++            dev_config["dhcp6"] = True
++            dev_config["dhcp6-overrides"] = dhcp_override
++
++        netcfg["ethernets"][nic_name] = dev_config
++    # Remove route-metric dhcp overrides and routes / routing-policy if only
++    # one nic configured
++    if len(netcfg["ethernets"]) == 1:
++        for nic_name in netcfg["ethernets"].keys():
++            netcfg["ethernets"][nic_name].pop("dhcp4-overrides")
++            netcfg["ethernets"][nic_name].pop("dhcp6-overrides", None)
++            netcfg["ethernets"][nic_name].pop("routes", None)
++            netcfg["ethernets"][nic_name].pop("routing-policy", None)
++    return netcfg
+diff --git a/tests/unittests/sources/test_aliyun.py b/tests/unittests/sources/test_aliyun.py
+index 2639302b2..2d61ff8af 100644
+--- a/tests/unittests/sources/test_aliyun.py
++++ b/tests/unittests/sources/test_aliyun.py
+@@ -9,46 +9,93 @@ import responses
+ 
+ from cloudinit import helpers
+ from cloudinit.sources import DataSourceAliYun as ay
+-from cloudinit.sources.DataSourceEc2 import convert_ec2_metadata_network_config
++from cloudinit.sources.helpers.aliyun import (
++    convert_ecs_metadata_network_config,
++)
++from cloudinit.util import load_json
+ from tests.unittests import helpers as test_helpers
+ 
+-DEFAULT_METADATA = {
+-    "instance-id": "aliyun-test-vm-00",
+-    "eipv4": "10.0.0.1",
+-    "hostname": "test-hostname",
+-    "image-id": "m-test",
+-    "launch-index": "0",
+-    "mac": "00:16:3e:00:00:00",
+-    "network-type": "vpc",
+-    "private-ipv4": "192.168.0.1",
+-    "serial-number": "test-string",
+-    "vpc-cidr-block": "192.168.0.0/16",
+-    "vpc-id": "test-vpc",
+-    "vswitch-id": "test-vpc",
+-    "vswitch-cidr-block": "192.168.0.0/16",
+-    "zone-id": "test-zone-1",
+-    "ntp-conf": {
+-        "ntp_servers": [
+-            "ntp1.aliyun.com",
+-            "ntp2.aliyun.com",
+-            "ntp3.aliyun.com",
+-        ]
+-    },
+-    "source-address": [
+-        "http://mirrors.aliyun.com",
+-        "http://mirrors.aliyuncs.com",
+-    ],
+-    "public-keys": {
+-        "key-pair-1": {"openssh-key": "ssh-rsa AAAAB3..."},
+-        "key-pair-2": {"openssh-key": "ssh-rsa AAAAB3..."},
++DEFAULT_METADATA_RAW = r"""{
++  "disks": {
++    "bp15spwwhlf8bbbn7xxx": {
++      "id": "d-bp15spwwhlf8bbbn7xxx",
++      "name": ""
++    }
++  },
++  "dns-conf": {
++    "nameservers": [
++    "100.100.2.136",
++    "100.100.2.138"
++    ]
++  },
++  "hibernation": {
++    "configured": "false"
++  },
++  "instance": {
++    "instance-name": "aliyun-test-vm-00",
++    "instance-type": "ecs.g8i.large",
++    "last-host-landing-time": "2024-11-17 10:02:41",
++    "max-netbw-egress": "2560000",
++    "max-netbw-ingress": "2560000",
++    "virtualization-solution": "ECS Virt",
++    "virtualization-solution-version": "2.0"
++  },
++  "network": {
++    "interfaces": {
++      "macs": {
++        "00:16:3e:14:59:58": {
++          "gateway": "172.16.101.253",
++          "netmask": "255.255.255.0",
++          "network-interface-id": "eni-bp13i3ed90icgdgaxxxx"
++        }
++      }
++    }
++  },
++  "ntp-conf": {
++    "ntp-servers": [
++      "ntp1.aliyun.com",
++      "ntp1.cloud.aliyuncs.com"
++    ]
++  },
++  "public-keys": {
++    "0": {
++      "openssh-key": "ssh-rsa AAAAB3Nza"
+     },
+-}
++    "skp-bp1test": {
++      "openssh-key": "ssh-rsa AAAAB3Nza"
++    }
++  },
++  "eipv4": "121.66.77.88",
++  "hostname": "aliyun-test-vm-00",
++  "image-id": "ubuntu_24_04_x64_20G_alibase_20241016.vhd",
++  "instance-id": "i-bp15ojxppkmsnyjxxxxx",
++  "mac": "00:16:3e:14:59:58",
++  "network-type": "vpc",
++  "owner-account-id": "123456",
++  "private-ipv4": "172.16.111.222",
++  "region-id": "cn-hangzhou",
++  "serial-number": "3ca05955-a892-46b3-a6fc-xxxxxx",
++  "source-address": "http://mirrors.cloud.aliyuncs.com",
++  "sub-private-ipv4-list": "172.16.101.215",
++  "vpc-cidr-block": "172.16.0.0/12",
++  "vpc-id": "vpc-bp1uwvjta7txxxxxxx",
++  "vswitch-cidr-block": "172.16.101.0/24",
++  "vswitch-id": "vsw-bp12cibmw6078qv123456",
++  "zone-id": "cn-hangzhou-j"
++}"""
++
++DEFAULT_METADATA = load_json(DEFAULT_METADATA_RAW)
+ 
+ DEFAULT_USERDATA = """\
+ #cloud-config
+ 
+ hostname: localhost"""
+ 
++DEFAULT_VENDORDATA = """\
++#cloud-config
++bootcmd:
++- echo hello world > /tmp/vendor"""
++
+ 
+ class TestAliYunDatasource(test_helpers.ResponsesTestCase):
+     def setUp(self):
+@@ -67,6 +114,10 @@ class TestAliYunDatasource(test_helpers.ResponsesTestCase):
+     def default_userdata(self):
+         return DEFAULT_USERDATA
+ 
++    @property
++    def default_vendordata(self):
++        return DEFAULT_VENDORDATA
++
+     @property
+     def metadata_url(self):
+         return (
+@@ -78,12 +129,29 @@ class TestAliYunDatasource(test_helpers.ResponsesTestCase):
+             + "/"
+         )
+ 
++    @property
++    def metadata_all_url(self):
++        return (
++            os.path.join(
++                self.metadata_address,
++                self.ds.min_metadata_version,
++                "meta-data",
++            )
++            + "/all"
++        )
++
+     @property
+     def userdata_url(self):
+         return os.path.join(
+             self.metadata_address, self.ds.min_metadata_version, "user-data"
+         )
+ 
++    @property
++    def vendordata_url(self):
++        return os.path.join(
++            self.metadata_address, self.ds.min_metadata_version, "vendor-data"
++        )
++
+     # EC2 provides an instance-identity document which must return 404 here
+     # for this test to pass.
+     @property
+@@ -133,9 +201,17 @@ class TestAliYunDatasource(test_helpers.ResponsesTestCase):
+         register = functools.partial(self.responses.add, responses.GET)
+         register_helper(register, base_url, data)
+ 
+-    def regist_default_server(self):
++    def regist_default_server(self, register_json_meta_path=True):
+         self.register_mock_metaserver(self.metadata_url, self.default_metadata)
++        if register_json_meta_path:
++            self.register_mock_metaserver(
++                self.metadata_all_url, DEFAULT_METADATA_RAW
++            )
+         self.register_mock_metaserver(self.userdata_url, self.default_userdata)
++        self.register_mock_metaserver(
++            self.vendordata_url, self.default_userdata
++        )
++
+         self.register_mock_metaserver(self.identity_url, self.default_identity)
+         self.responses.add(responses.PUT, self.token_url, "API-TOKEN")
+ 
+@@ -175,7 +251,25 @@ class TestAliYunDatasource(test_helpers.ResponsesTestCase):
+         self._test_get_iid()
+         self._test_host_name()
+         self.assertEqual("aliyun", self.ds.cloud_name)
+-        self.assertEqual("ec2", self.ds.platform)
++        self.assertEqual("aliyun", self.ds.platform)
++        self.assertEqual(
++            "metadata (http://100.100.100.200)", self.ds.subplatform
++        )
++
++    @mock.patch("cloudinit.sources.DataSourceEc2.util.is_resolvable")
++    @mock.patch("cloudinit.sources.DataSourceAliYun._is_aliyun")
++    def test_with_mock_server_without_json_path(self, m_is_aliyun, m_resolv):
++        m_is_aliyun.return_value = True
++        self.regist_default_server(register_json_meta_path=False)
++        ret = self.ds.get_data()
++        self.assertEqual(True, ret)
++        self.assertEqual(1, m_is_aliyun.call_count)
++        self._test_get_data()
++        self._test_get_sshkey()
++        self._test_get_iid()
++        self._test_host_name()
++        self.assertEqual("aliyun", self.ds.cloud_name)
++        self.assertEqual("aliyun", self.ds.platform)
+         self.assertEqual(
+             "metadata (http://100.100.100.200)", self.ds.subplatform
+         )
+@@ -221,7 +315,7 @@ class TestAliYunDatasource(test_helpers.ResponsesTestCase):
+         self._test_get_iid()
+         self._test_host_name()
+         self.assertEqual("aliyun", self.ds.cloud_name)
+-        self.assertEqual("ec2", self.ds.platform)
++        self.assertEqual("aliyun", self.ds.platform)
+         self.assertEqual(
+             "metadata (http://100.100.100.200)", self.ds.subplatform
+         )
+@@ -272,31 +366,28 @@ class TestAliYunDatasource(test_helpers.ResponsesTestCase):
+             public_keys["key-pair-0"]["openssh-key"],
+         )
+ 
+-    def test_route_metric_calculated_without_device_number(self):
+-        """Test that route-metric code works without `device-number`
+-
+-        `device-number` is part of EC2 metadata, but not supported on aliyun.
+-        Attempting to access it will raise a KeyError.
+-
+-        LP: #1917875
+-        """
+-        netcfg = convert_ec2_metadata_network_config(
++    def test_route_metric_calculated_with_multiple_network_cards(self):
++        """Test that route-metric code works with multiple network cards"""
++        netcfg = convert_ecs_metadata_network_config(
+             {
+                 "interfaces": {
+                     "macs": {
+-                        "06:17:04:d7:26:09": {
+-                            "interface-id": "eni-e44ef49e",
++                        "00:16:3e:14:59:58": {
++                            "ipv6-gateway": "2408:xxxxx",
++                            "ipv6s": "[2408:xxxxxx]",
++                            "network-interface-id": "eni-bp13i1xxxxx",
+                         },
+-                        "06:17:04:d7:26:08": {
+-                            "interface-id": "eni-e44ef49f",
++                        "00:16:3e:39:43:27": {
++                            "gateway": "172.16.101.253",
++                            "netmask": "255.255.255.0",
++                            "network-interface-id": "eni-bp13i2xxxx",
+                         },
+                     }
+                 }
+             },
+-            mock.Mock(),
+             macs_to_nics={
+-                "06:17:04:d7:26:09": "eth0",
+-                "06:17:04:d7:26:08": "eth1",
++                "00:16:3e:14:59:58": "eth0",
++                "00:16:3e:39:43:27": "eth1",
+             },
+         )
+ 
+@@ -314,6 +405,28 @@ class TestAliYunDatasource(test_helpers.ResponsesTestCase):
+             netcfg["ethernets"]["eth1"].keys()
+         )
+ 
++        # eth0 network meta-data  have ipv6s info, ipv6 should True
++        met0_dhcp6 = netcfg["ethernets"]["eth0"]["dhcp6"]
++        assert met0_dhcp6 is True
++
++        netcfg = convert_ecs_metadata_network_config(
++            {
++                "interfaces": {
++                    "macs": {
++                        "00:16:3e:14:59:58": {
++                            "gateway": "172.16.101.253",
++                            "netmask": "255.255.255.0",
++                            "network-interface-id": "eni-bp13ixxxx",
++                        }
++                    }
++                }
++            },
++            macs_to_nics={"00:16:3e:14:59:58": "eth0"},
++        )
++        met0 = netcfg["ethernets"]["eth0"]
++        # single network card would have no dhcp4-overrides
++        assert "dhcp4-overrides" not in met0
++
+ 
+ class TestIsAliYun(test_helpers.CiTestCase):
+     ALIYUN_PRODUCT = "Alibaba Cloud ECS"
+diff --git a/tests/unittests/sources/test_ec2.py b/tests/unittests/sources/test_ec2.py
+index b28afc52f..c3d33dfc9 100644
+--- a/tests/unittests/sources/test_ec2.py
++++ b/tests/unittests/sources/test_ec2.py
+@@ -1709,16 +1709,6 @@ class TestIdentifyPlatform:
+         )
+         assert ec2.CloudNames.AWS == ec2.identify_platform()
+ 
+-    @mock.patch("cloudinit.sources.DataSourceEc2._collect_platform_data")
+-    def test_identify_aliyun(self, m_collect):
+-        """aliyun should be identified if product name equals to
+-        Alibaba Cloud ECS
+-        """
+-        m_collect.return_value = self.collmock(
+-            product_name="Alibaba Cloud ECS"
+-        )
+-        assert ec2.CloudNames.ALIYUN == ec2.identify_platform()
+-
+     @mock.patch("cloudinit.sources.DataSourceEc2._collect_platform_data")
+     def test_identify_zstack(self, m_collect):
+         """zstack should be identified if chassis-asset-tag
+-- 
+2.39.3
+

@@ -1,14 +1,14 @@
-From 83b84453551d385f3102c03abacaf72345e466ca Mon Sep 17 00:00:00 2001
+From 486e0dcb6e612b38e7dcc2bcfa905ab9a39a0387 Mon Sep 17 00:00:00 2001
 From: Ani Sinha <anisinha@redhat.com>
 Date: Thu, 13 Mar 2025 19:46:35 +0530
 Subject: [PATCH] fix: NM reload and bring up individual network conns (#6073)
 
-RH-Author: Ani Sinha <anisinha@redhat.com
-RH-MergeRequest: 157: fix: NM reload and bring up individual network conns (#6073)
-RH-Jira: RHEL-83639
-RH-Acked-by: xiachen
-RH-Acked-by: eesposit
-RH-Commit: 943e3e0a fix: NM reload and bring up individual network conns (#6073)
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 126: fix: NM reload and bring up individual network conns (#6073)
+RH-Jira: RHEL-81896
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: xiachen <xiachen@redhat.com>
+RH-Commit: [1/1] 857425551179297a53fe8c870f055ad832085d36 (anisinha/cloud-init)
 
 Reloading the network manager service is equivalent to "nmcli reload" and this
 command only reloads the global .conf files and DNS config, not connections.
@@ -34,7 +34,7 @@ Signed-off-by: Ani Sinha <anisinha@redhat.com>
  2 files changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/cloudinit/net/activators.py b/cloudinit/net/activators.py
-index de9a1d3c..94212894 100644
+index de9a1d3c9..942128941 100644
 --- a/cloudinit/net/activators.py
 +++ b/cloudinit/net/activators.py
 @@ -206,9 +206,9 @@ class NetworkManagerActivator(NetworkActivator):
@@ -50,7 +50,7 @@ index de9a1d3c..94212894 100644
  
  class NetplanActivator(NetworkActivator):
 diff --git a/tests/unittests/test_net_activators.py b/tests/unittests/test_net_activators.py
-index a720ada8..84876b73 100644
+index a720ada81..84876b73b 100644
 --- a/tests/unittests/test_net_activators.py
 +++ b/tests/unittests/test_net_activators.py
 @@ -247,8 +247,8 @@ NETWORK_MANAGER_BRING_UP_ALL_CALL_LIST: list = [
