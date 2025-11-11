@@ -1,14 +1,15 @@
-From e408a36f43f476a0804f4855da2d7b58b405d87f Mon Sep 17 00:00:00 2001
+From 9c2c1169ba2d11b22ff054583583cd4298a5ba81 Mon Sep 17 00:00:00 2001
 From: Chad Smith <chad.smith@canonical.com>
 Date: Tue, 24 Jun 2025 09:12:52 -0600
 Subject: [PATCH 2/2] fix: strict disable in ds-identify on no datasources
  found
 
 RH-Author: Ani Sinha <anisinha@redhat.com>
-RH-MergeRequest: 161: CVE-2024-6174: fix: Don't attempt to identify non-x86 OpenStack instances
-RH-Jira: RHEL-100611
+RH-MergeRequest: 129: CVE-2024-6174:  fix: Don't attempt to identify non-x86 OpenStack instances
+RH-Jira: RHEL-100615
 RH-Acked-by: xiachen <xiachen@redhat.com>
-RH-Commit: [2/2] 4a12b4c640fe84916cc52484c232898506ab9d19
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Commit: [2/2] f941ad029982aa5b1aecd569380ae47a6d727d9b (anisinha/cloud-init)
 
 Take the CVE-2024-6174 strict detection fix one step further.
 

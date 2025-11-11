@@ -1,14 +1,15 @@
-From b4d74e6043fa991a52e2cb98178a17914afe75b9 Mon Sep 17 00:00:00 2001
+From cce7faf49aeb3b53433b9b7bcc48ca2e7dbaee64 Mon Sep 17 00:00:00 2001
 From: Brett Holman <brett.holman@canonical.com>
 Date: Thu, 22 Aug 2024 16:54:53 -0600
 Subject: [PATCH 1/2] fix: Don't attempt to identify non-x86 OpenStack
  instances
 
 RH-Author: Ani Sinha <anisinha@redhat.com>
-RH-MergeRequest: 161: CVE-2024-6174: fix: Don't attempt to identify non-x86 OpenStack instances
-RH-Jira: RHEL-100611
+RH-MergeRequest: 129: CVE-2024-6174:  fix: Don't attempt to identify non-x86 OpenStack instances
+RH-Jira: RHEL-100615
 RH-Acked-by: xiachen <xiachen@redhat.com>
-RH-Commit: [1/2] 9a7d7ee54fc4361e3c2b92e399ea2a6e45290300
+RH-Acked-by: Miroslav Rezanina <mrezanin@redhat.com>
+RH-Commit: [1/2] 71a7a1b189d33ff43dc439ecf73c996a9cca3494 (anisinha/cloud-init)
 
 This causes cloud-init to attempt to reach out to the OpenStack Nova
 datasource in non-Nova deployments on non-x86 architectures.

@@ -1,6 +1,6 @@
 Name:                 cloud-init
 Version:              24.4
-Release:              4%{?dist}.3.0.2
+Release:              7%{?dist}.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -21,15 +21,17 @@ Patch7:               ci-Use-log_with_downgradable_level-for-user-password-wa.pa
 Patch8:               ci-downstream-set-deprecation-boundary-version.patch
 # For RHEL-76361 - [c9s] cloud-init remove 'NOZEROCONF=yes' from /etc/sysconfig/network
 Patch9:               ci-net-sysconfig-do-not-remove-all-existing-settings-of.patch
-# For RHEL-83636 - DataSourceNoCloudNet network configuration is ineffective [rhel-9.6.z]
+# For RHEL-81703 - DataSourceNoCloudNet network configuration is ineffective - c9s
 Patch10:              ci-fix-NM-reload-and-bring-up-individual-network-conns-.patch
-Patch11:              0003-downstream-Retain-exit-code-in-cloud-init-status-for.patch
-# For RHEL-100611 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-9.6.z]
+# For RHEL-88658 - Cloud-Init Backport Optimization Features on Alibaba Cloud
+Patch11:              ci-feat-aliyun-datasource-support-crawl-metadata-at-onc.patch
+# For RHEL-100615 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-9.7]
 Patch12:              ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch
-# For RHEL-100611 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-9.6.z]
+# For RHEL-100615 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-9.7]
 Patch13:              ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch
-Patch14:              future-backport.patch
-Patch15:              0001-Remove-rh-subscription.patch
+Patch14:              0003-downstream-Retain-exit-code-in-cloud-init-status-for.patch
+Patch15:              future-backport.patch
+Patch16:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -244,23 +246,27 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Mon Jul 14 2025 Release Engineering <releng@openela.org> - 24.4.0.2
+* Tue Nov 11 2025 Release Engineering <releng@openela.org> - 24.4.0.2
 - Apply OpenELA fixes
 
-* Thu Jul 03 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-4.el9_6.3
-- ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch [RHEL-100611]
-- ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch [RHEL-100611]
-- Resolves: RHEL-100611
-  (CVE-2024-6174 cloud-init: From CVEorg collector [rhel-9.6.z])
+* Thu Jul 03 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-7
+- ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch [RHEL-100615]
+- ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch [RHEL-100615]
+- Fix missing patch [RHEL-101692]
+- Resolves: RHEL-100615
+  (CVE-2024-6174 cloud-init: From CVEorg collector [rhel-9.7])
+- Resolves: RHEL-101692
+  (c9s dist-git missing patch "downstream: Retain exit code in cloud-init status for recoverable errors")
 
-* Thu Jul 03 2025  Miroslav Rezanina <mrezanin@redhat.com> - 24.4-4.el9_6.2
-- Adding missed fix 'Retain exit code in cloud-init status for recoverable errors'
-- Resolves: RHEL-101693
+* Wed May 14 2025 Jon Maloy <jmaloy@redhat.com> - 24.4-6
+- ci-feat-aliyun-datasource-support-crawl-metadata-at-onc.patch [RHEL-88658]
+- Resolves: RHEL-88658
+  (Cloud-Init Backport Optimization Features on Alibaba Cloud)
 
-* Thu Mar 20 2025 Jon Maloy <jmaloy@redhat.com> - 24.4-4.el9_6.1
-- ci-fix-NM-reload-and-bring-up-individual-network-conns-.patch [RHEL-83636]
-- Resolves: RHEL-83636
-  (DataSourceNoCloudNet network configuration is ineffective [rhel-9.6.z])
+* Tue Mar 18 2025 Jon Maloy <jmaloy@redhat.com> - 24.4-5
+- ci-fix-NM-reload-and-bring-up-individual-network-conns-.patch [RHEL-81703]
+- Resolves: RHEL-81703
+  (DataSourceNoCloudNet network configuration is ineffective - c9s)
 
 * Mon Feb 17 2025 Jon Maloy <jmaloy@redhat.com> - 24.4-4
 - ci-net-sysconfig-do-not-remove-all-existing-settings-of.patch [RHEL-76361]
