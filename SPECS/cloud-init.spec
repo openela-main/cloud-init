@@ -6,7 +6,7 @@
 
 Name:           cloud-init
 Version:        24.4
-Release:        6%{?dist}
+Release:        6%{?dist}.1
 Summary:        Cloud instance init scripts
 License:        Apache-2.0 OR GPL-3.0-only
 URL:            https://github.com/canonical/cloud-init
@@ -225,7 +225,7 @@ fi
 /usr/lib/systemd/system-generators/cloud-init-generator
 %{_unitdir}/cloud-init-hotplugd.service
 %{_unitdir}/cloud-init-hotplugd.socket
-%{_unitdir}/sshd-keygen@.service.d/disable-sshd-keygen-if-cloud-init-active.conf
+%config(noreplace) %{_unitdir}/sshd-keygen@.service.d/disable-sshd-keygen-if-cloud-init-active.conf
 %{_tmpfilesdir}/%{name}.conf
 %{python3_sitelib}/*
 %{_libexecdir}/%{name}
@@ -237,6 +237,11 @@ fi
 
 
 %changelog
+* Wed Dec 10 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-6.el10_1.1
+- ci-downstream-Do-not-override-changes-in-disable-sshd-k.patch [RHEL-128905]
+- Resolves: RHEL-128905
+  ([rhel-10] cloud-init upgrade is overwriting modifications in disable-sshd-keygen-if-cloud-init-active.conf [rhel-10.1.z])
+
 * Fri Jul 04 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-6
 - ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch [RHEL-100617]
 - ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch [RHEL-100617]
