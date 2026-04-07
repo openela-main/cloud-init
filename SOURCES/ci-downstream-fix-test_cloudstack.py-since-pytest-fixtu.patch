@@ -1,0 +1,96 @@
+From c96e5802145fd0c7e0d939b335f1abe953643063 Mon Sep 17 00:00:00 2001
+From: Ani Sinha <anisinha@redhat.com>
+Date: Mon, 23 Mar 2026 13:50:11 +0530
+Subject: [PATCH 3/3] downstream: fix test_cloudstack.py since pytest fixtures
+ cannot be used
+
+RH-Author: Ani Sinha <anisinha@redhat.com>
+RH-MergeRequest: 178: fix(cloudstack): Improve domain-name DHCP lease lookup
+RH-Jira: RHEL-159032
+RH-Acked-by: Emanuele Giuseppe Esposito <eesposit@redhat.com>
+RH-Acked-by: xiachen <xiachen@redhat.com>
+RH-Commit: [3/3] 0c7a39a2ee00228bfbd5de87d95e08d0d9c32101
+
+pytest.mark.parametrize decorator cannot be used for functions inside classes
+that are derived from unittest.TestCase[1]. Here, the test class is derived
+from CiTestCase which in turn is derived from TestCase class which is again
+itself derived from unittest.TestCase. This was removed from the upstream
+commit 589c9461db1 ("Fix: Add Ephemeral Network for CloudStackLocal DS (#6144)")
+which we are not backporting. Hence, we change the test code such that the
+main test function is called for each of the previously declared parameterized
+values.
+
+This patch should not be needed after a rebase when 589c9461db1 pulled in
+through rebase.
+
+X-downstream-only: true
+
+1. https://stackoverflow.com/questions/63720118/pytest-parametrize-i-am-getting-missing-required-positional-arguments
+Signed-off-by: Ani Sinha <anisinha@redhat.com>
+---
+ tests/unittests/sources/test_cloudstack.py | 45 ++++++++++++----------
+ 1 file changed, 24 insertions(+), 21 deletions(-)
+
+diff --git a/tests/unittests/sources/test_cloudstack.py b/tests/unittests/sources/test_cloudstack.py
+index 0f987066..f3b08a47 100644
+--- a/tests/unittests/sources/test_cloudstack.py
++++ b/tests/unittests/sources/test_cloudstack.py
+@@ -328,31 +328,34 @@ class TestCloudStackHostname(CiTestCase):
+             result = ds.get_hostname(fqdn=True)
+             self.assertTupleEqual(expected, result)
+ 
+-    @pytest.mark.parametrize(
+-        "lease_key,expected_domain",
+-        [
+-            ("DOMAINNAME", "example.com"),
+-            ("Domain", "example.com"),
+-            ("domain-name", "example.com"),
+-        ],
+-    )
+     def test__get_domainname_supports_all_casing_variants(
+-        self, lease_key, expected_domain
++        self,
+     ):
+         """Ensure _get_domainname works with DOMAINNAME, Domain and
+         domain-name."""
+-        # Mock the helper to return the domain only when the exact key is asked
+-        with patch(
+-            "cloudinit.net.dhcp.networkd_get_option_from_leases"
+-        ) as m_get:
+-            m_get.side_effect = lambda key, extra_keys=None: (
+-                "example.com   " if key == lease_key else None
+-            )
+-
+-            ds = DataSourceCloudStack(
+-                {}, distro=MockDistro(), paths=helpers.Paths({})
+-            )
+-            assert ds._get_domainname() == expected_domain
++        cases = [
++            ("DOMAINNAME", "example.com"),
++            ("Domain", "example.com"),
++            ("domain-name", "example.com"),
++        ]
++
++        def testit(lease_key, expected_domain):
++            # Mock the helper to return the domain only when
++            # the exact key is asked
++            with patch(
++                "cloudinit.net.dhcp.networkd_get_option_from_leases"
++            ) as m_get:
++                m_get.side_effect = lambda key, extra_keys=None: (
++                    "example.com   " if key == lease_key else None
++                )
++
++                ds = DataSourceCloudStack(
++                    {}, distro=MockDistro(), paths=helpers.Paths({})
++                )
++                assert ds._get_domainname() == expected_domain
++
++        for lease_key, expected_domain in cases:
++            testit(lease_key, expected_domain)
+ 
+ 
+ @pytest.mark.usefixtures("dhclient_exists")
+-- 
+2.47.3
+
