@@ -1,6 +1,6 @@
 Name:                 cloud-init
 Version:              24.4
-Release:              7%{?dist}.1.0.2
+Release:              8%{?dist}.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -221,7 +221,6 @@ fi
 %dir               %{_sysconfdir}/cloud/templates
 %config(noreplace) %{_sysconfdir}/cloud/templates/*
 %config(noreplace) %{_unitdir}/sshd-keygen@.service.d/disable-sshd-keygen-if-cloud-init-active.conf
-
 %{_unitdir}/cloud-config.service
 %{_unitdir}/cloud-config.target
 %{_unitdir}/cloud-final.service
@@ -247,13 +246,13 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue Jan 27 2026 Release Engineering <releng@openela.org> - 24.4.0.2
+* Tue May 19 2026 Release Engineering <releng@openela.org> - 24.4.0.2
 - Apply OpenELA fixes
 
-* Wed Dec 10 2025 Jon Maloy <jmaloy@redhat.com> - 24.4-7.el9_7.1
-- ci-downstream-Do-not-override-changes-in-disable-sshd-k.patch [RHEL-128882]
-- Resolves: RHEL-128882
-  ([rhel-9] cloud-init upgrade is overwriting modifications in disable-sshd-keygen-if-cloud-init-active.conf [rhel-9.7.z])
+* Wed Dec 10 2025 Jon Maloy <jmaloy@redhat.com> - 24.4-8
+- ci-downstream-Do-not-override-changes-in-disable-sshd-k.patch [RHEL-128876]
+- Resolves: RHEL-128876
+  ([rhel-9] cloud-init upgrade is overwriting modifications in disable-sshd-keygen-if-cloud-init-active.conf)
 
 * Thu Jul 03 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-7
 - ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch [RHEL-100615]
