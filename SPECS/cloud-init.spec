@@ -6,7 +6,7 @@
 
 Name:           cloud-init
 Version:        24.4
-Release:        7%{?dist}
+Release:        7%{?dist}.1
 Summary:        Cloud instance init scripts
 License:        Apache-2.0 OR GPL-3.0-only
 URL:            https://github.com/canonical/cloud-init
@@ -32,6 +32,12 @@ Patch11: ci-feat-aliyun-datasource-support-crawl-metadata-at-onc.patch
 Patch12: ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.patch
 # For RHEL-100617 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-10.1]
 Patch13: ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch
+# For RHEL-159033 - [GSS][Secure Support] [RHEL-10] cloud-init requests lease before DHCP can provide one [rhel-10.2.z]
+Patch14: ci-fix-Pass-interface-string-to-get_newest_lease-6648.patch
+# For RHEL-159033 - [GSS][Secure Support] [RHEL-10] cloud-init requests lease before DHCP can provide one [rhel-10.2.z]
+Patch15: ci-fix-cloudstack-Improve-domain-name-DHCP-lease-lookup.patch
+# For RHEL-159033 - [GSS][Secure Support] [RHEL-10] cloud-init requests lease before DHCP can provide one [rhel-10.2.z]
+Patch16: ci-downstream-fix-test_cloudstack.py-since-pytest-fixtu.patch
 
 BuildArch:      noarch
 
@@ -237,6 +243,13 @@ fi
 
 
 %changelog
+* Tue Apr 07 2026 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-7.el10_2.1
+- ci-fix-Pass-interface-string-to-get_newest_lease-6648.patch [RHEL-159033]
+- ci-fix-cloudstack-Improve-domain-name-DHCP-lease-lookup.patch [RHEL-159033]
+- ci-downstream-fix-test_cloudstack.py-since-pytest-fixtu.patch [RHEL-159033]
+- Resolves: RHEL-159033
+  ([GSS][Secure Support] [RHEL-10] cloud-init requests lease before DHCP can provide one [rhel-10.2.z])
+
 * Wed Dec 10 2025 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-7
 - ci-downstream-Do-not-override-changes-in-disable-sshd-k.patch [RHEL-128097]
 - Resolves: RHEL-128097
