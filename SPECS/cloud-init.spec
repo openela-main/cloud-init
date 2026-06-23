@@ -1,6 +1,6 @@
 Name:                 cloud-init
 Version:              24.4
-Release:              8%{?dist}.0.2
+Release:              8%{?dist}.1.0.2
 Summary:              Cloud instance init scripts
 License:              ASL 2.0 or GPLv3
 URL:                  http://launchpad.net/cloud-init
@@ -30,8 +30,14 @@ Patch12:              ci-fix-Don-t-attempt-to-identify-non-x86-OpenStack-inst.pa
 # For RHEL-100615 - CVE-2024-6174 cloud-init: From CVEorg collector [rhel-9.7]
 Patch13:              ci-fix-strict-disable-in-ds-identify-on-no-datasources-.patch
 Patch14:              0003-downstream-Retain-exit-code-in-cloud-init-status-for.patch
-Patch15:              future-backport.patch
-Patch16:              0001-Remove-rh-subscription.patch
+# For RHEL-159095 - CLONE - [GSS][Secure Support] [RHEL-9] cloud-init requests lease before DHCP can provide one [rhel-9.8.z]
+Patch15:              ci-fix-Pass-interface-string-to-get_newest_lease-6648.patch
+# For RHEL-159095 - CLONE - [GSS][Secure Support] [RHEL-9] cloud-init requests lease before DHCP can provide one [rhel-9.8.z]
+Patch16:              ci-fix-cloudstack-Improve-domain-name-DHCP-lease-lookup.patch
+# For RHEL-159095 - CLONE - [GSS][Secure Support] [RHEL-9] cloud-init requests lease before DHCP can provide one [rhel-9.8.z]
+Patch17:              ci-downstream-fix-test_cloudstack.py-since-pytest-fixtu.patch
+Patch18:              future-backport.patch
+Patch19:              0001-Remove-rh-subscription.patch
 
 BuildArch:            noarch
 
@@ -246,8 +252,15 @@ fi
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 
 %changelog
-* Tue May 19 2026 Release Engineering <releng@openela.org> - 24.4.0.2
+* Tue Jun 23 2026 Release Engineering <releng@openela.org> - 24.4.0.2
 - Apply OpenELA fixes
+
+* Wed Apr 08 2026 Miroslav Rezanina <mrezanin@redhat.com> - 24.4-8.el9_8.1
+- ci-fix-Pass-interface-string-to-get_newest_lease-6648.patch [RHEL-159095]
+- ci-fix-cloudstack-Improve-domain-name-DHCP-lease-lookup.patch [RHEL-159095]
+- ci-downstream-fix-test_cloudstack.py-since-pytest-fixtu.patch [RHEL-159095]
+- Resolves: RHEL-159095
+  (CLONE - [GSS][Secure Support] [RHEL-9] cloud-init requests lease before DHCP can provide one [rhel-9.8.z])
 
 * Wed Dec 10 2025 Jon Maloy <jmaloy@redhat.com> - 24.4-8
 - ci-downstream-Do-not-override-changes-in-disable-sshd-k.patch [RHEL-128876]
